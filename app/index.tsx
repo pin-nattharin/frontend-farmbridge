@@ -38,8 +38,8 @@ export default function HomeScreen() {
       <Link href="/farmer/dashboard" style={styles.testLink}>
         <Text>ไปหน้า dashboard</Text>
       </Link>
-      <Link href="/buyer/homeBuyer" style={styles.testLink}>
-        <Text>ไปหน้า home</Text>
+      <Link href="/farmer/homeFarmer" style={styles.testLink}>
+        <Text>ไปหน้า home farmer</Text>
       </Link>
       <Link href="/farmer/verifyPickup" style={styles.testLink}>
         <Text>ไปหน้า ตรวจสอบรายการ</Text>
@@ -47,8 +47,8 @@ export default function HomeScreen() {
       <Link href="/buyer/createDemand" style={styles.testLink}>
         <Text>ไปหน้า เพิ่มความต้องการ</Text>
       </Link>
-      <Link href="/buyer/payment" style={styles.testLink}>
-        <Text>ไปหน้า ชำระเงิน</Text>
+      <Link href="/productDetail" style={styles.testLink}>
+        <Text>ไปหน้า รายละเอียดสินค้า</Text>
       </Link>
     </View>
   );

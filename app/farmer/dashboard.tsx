@@ -6,10 +6,49 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  Dimensions,
 } from 'react-native';
 
 import { useRouter } from 'expo-router'; // <-- 1. Import useRouter
 import FarmerNavbar from '../../components/ui/FarmerNavbar';
+import { LineChart } from 'react-native-chart-kit';
+
+const { width } = Dimensions.get('window');
+
+const chartConfig = {
+  backgroundColor: '#ffffff',
+  backgroundGradientFrom: '#ffffff',
+  backgroundGradientTo: '#ffffff',
+  decimalPlaces: 0,
+  color: (opacity = 1) => `rgba(0, 86, 179, ${opacity})`,
+  labelColor: (opacity = 1) => `rgba(100, 100, 100, ${opacity})`,
+  propsForDots: {
+    r: '4',
+    strokeWidth: '2',
+    stroke: '#0056b3',
+  },
+  paddingRight: 0,
+  paddingLeft: 0,
+};
+
+const allChartData = {
+  'มะม่วง': {
+    labels: ['ม.ค.', 'มี.ค.', 'พ.ค.', 'ก.ค.', 'ก.ย.', 'พ.ย.'],
+    datasets: [{ data: [25, 27, 30, 28, 26, 30] }],
+  },
+  'ทุเรียน': {
+    labels: ['ม.ค.', 'มี.ค.', 'พ.ค.', 'ก.ค.', 'ก.ย.', 'พ.ย.'],
+    datasets: [{ data: [90, 95, 110, 120, 100, 98] }],
+  },
+  'มังคุด': {
+    labels: ['ม.ค.', 'มี.ค.', 'พ.ค.', 'ก.ค.', 'ก.ย.', 'พ.ย.'],
+    datasets: [{ data: [40, 42, 45, 41, 38, 43] }],
+  },
+  'องุ่น': {
+    labels: ['ม.ค.', 'มี.ค.', 'พ.ค.', 'ก.ค.', 'ก.ย.', 'พ.ย.'],
+    datasets: [{ data: [100, 105, 95, 110, 115, 120] }],
+  },
+};
 
 const DashboardScreen = () => {
   const router = useRouter();
@@ -17,6 +56,10 @@ const DashboardScreen = () => {
   // --- 1. State สำหรับ Dropdown ---
   const [selectedChart, setSelectedChart] = useState('มะม่วง'); // ค่าเริ่มต้น
   const [isDropdownVisible, setDropdownVisible] = useState(false);
+
+  const currentChartData =
+    allChartData[selectedChart as keyof typeof allChartData] ||
+    allChartData['มะม่วง'];
 
   // รายการตัวเลือก (ตามรูป)
   const chartOptions = ['มะม่วง', 'ทุเรียน', 'มังคุด', 'องุ่น'];
@@ -48,12 +91,12 @@ const DashboardScreen = () => {
       <ScrollView style={styles.container}>
         {/* --- Header --- */}
         <View style={styles.header}>
-          {/* ผมเอารูป "<" ออกตามโค้ดล่าสุดที่คุณส่งมา */}
           <Text style={styles.title}>แดชบอร์ด</Text>
         </View>
 
         {/* --- Metrics Cards --- */}
         <View style={styles.metricsRow}>
+          {/* (คงเดิม) */}
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>รายได้ทั้งหมด</Text>
             <Text style={styles.metricValueBlue}>8,500 บาท</Text>
@@ -64,7 +107,7 @@ const DashboardScreen = () => {
           </View>
         </View>
 
-        {/* --- Recent Sale Card --- */}
+         {/* --- Recent Sale Card --- */}
         <View style={styles.recentSaleCard}>
           <View style={styles.recentSaleHeader}>
             <Text style={styles.recentSaleLabel}>ขายอะไรไปแล้วบ้าง</Text>
@@ -75,30 +118,20 @@ const DashboardScreen = () => {
 
         {/* --- Chart Section --- */}
         <View style={styles.chartSection}>
-          {/* --- 2. โค้ด Dropdown ที่สร้างเอง --- */}
+          {/* --- Dropdown (คงเดิม) --- */}
           <View style={styles.chartDropdownWrapper}>
-            {/* ปุ่ม Dropdown หลัก */}
             <TouchableOpacity
               style={styles.chartDropdownButton}
               onPress={() => setDropdownVisible(!isDropdownVisible)}
             >
-              <Text style={styles.chartDropdownText}>
-                {/* หมายเหตุ: ในรูป Mockup ของคุณ ปุ่มแสดง "กราฟราคา" 
-                  แต่ Options เป็นชื่อผลไม้
-                  ผมขอใช้ค่าที่เลือก (selectedChart) มาแสดงผลแทน 
-                  ซึ่งตรงกับโค้ดที่คุณส่งมาครั้งก่อนครับ
-                */}
-                {selectedChart} ▾
-              </Text>
+              <Text style={styles.chartDropdownText}>{selectedChart} ▾</Text>
             </TouchableOpacity>
 
-            {/* เมนู Dropdown ที่จะแสดง/ซ่อน */}
             {isDropdownVisible && (
               <View style={styles.dropdownMenu}>
                 {chartOptions.map((option, index) => (
                   <TouchableOpacity
                     key={index}
-                    // 3. เพิ่ม Style เมื่อถูกเลือก (เหมือนในรูป)
                     style={[
                       styles.dropdownItem,
                       option === selectedChart && styles.dropdownItemSelected,
@@ -120,18 +153,23 @@ const DashboardScreen = () => {
             )}
           </View>
 
-          {/* กราฟ */}
-          <View style={styles.chartPlaceholder}>
-            <Text style={styles.chartPlaceholderText}>
-              [ พื้นที่สำหรับกราฟ {selectedChart} ]
-            </Text>
+          {/* --- 5. แทนที่ Placeholder ด้วย LineChart --- */}
+          <View style={styles.chartContainer}>
+            <LineChart
+              data={currentChartData}
+              width={width - 32} // (ลบ padding 16*2)
+              height={220}
+              chartConfig={chartConfig}
+              bezier // ทำให้เส้นโค้ง
+              style={styles.chart}
+            />
           </View>
         </View>
       </ScrollView>
-      {/* --- 3. เพิ่ม Navbar ที่นี่ --- */}
-      {/* (อยู่นอก ScrollView แต่ใน SafeAreaView) */}
+
+      {/* --- Navbar (คงเดิม) --- */}
       <FarmerNavbar
-        activeTab="chart" // (บอก Navbar ว่าปุ่ม Home active อยู่)
+        activeTab="chart"
         onHomePress={handleNavHome}
         onChartPress={handleNavChart}
         onAddPress={handleNavAdd}
@@ -142,8 +180,9 @@ const DashboardScreen = () => {
   );
 };
 
-// --- 4. Stylesheet (รวมสไตล์ของ Dropdown) ---
+// --- 6. Stylesheet (แก้ไข chartPlaceholder) ---
 const styles = StyleSheet.create({
+  // (Styles อื่นๆ คงเดิม)
   safeArea: {
     flex: 1,
     backgroundColor: '#f8f9fa',
@@ -233,14 +272,14 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 12,
   },
-  // --- สไตล์สำหรับ Dropdown ที่สร้างเอง ---
+  // --- สไตล์สำหรับ Dropdown (คงเดิม) ---
   chartDropdownWrapper: {
-    position: 'relative', // ทำให้เมนู absolute อ้างอิงจากตัวนี้
+    position: 'relative',
     alignSelf: 'flex-start',
-    zIndex: 10, // ทำให้เมนูลอยทับกราฟ
+    zIndex: 10,
   },
   chartDropdownButton: {
-    backgroundColor: '#e9ecef', // สีเทาอ่อนของปุ่ม (ตามโค้ดเดิม)
+    backgroundColor: '#e9ecef',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -252,12 +291,11 @@ const styles = StyleSheet.create({
   },
   dropdownMenu: {
     position: 'absolute',
-    top: '110%', // ให้เมนูลอยอยู่ใต้ปุ่ม
+    top: '110%',
     left: 0,
     backgroundColor: '#ffffff',
     borderRadius: 8,
-    width: 120, // ความกว้างของเมนู (ปรับได้)
-    // Shadow (เหมือนในรูป)
+    width: 120,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -268,7 +306,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
-  // Style สำหรับไอเท็มที่ถูกเลือก (สีน้ำเงิน)
   dropdownItemSelected: {
     backgroundColor: '#0056b3',
   },
@@ -276,29 +313,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
-  // Style สำหรับ *ตัวอักษร* ที่ถูกเลือก (สีขาว)
   dropdownItemTextSelected: {
     color: '#ffffff',
     fontWeight: 'bold',
   },
   // --- จบสไตล์ Dropdown ---
-  chartPlaceholder: {
-    height: 200,
+
+  // --- 7. แก้ไข Style กราฟ (คัดลอกจาก productDetail.tsx) ---
+  chartContainer: {
+    overflow: 'hidden', // <-- เพิ่ม/แก้ไข
+    height: 220,
     backgroundColor: '#ffffff',
     borderRadius: 12,
     marginTop: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    // ลบ justifyContent, alignItems ออก
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  chartPlaceholderText: {
-    color: '#aaa',
-    fontSize: 16,
+  chart: {
+    borderRadius: 16, // <-- เพิ่ม
   },
+  // (ลบ chartPlaceholderText)
 });
 
 export default DashboardScreen;

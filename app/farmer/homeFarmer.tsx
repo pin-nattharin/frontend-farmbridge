@@ -3,18 +3,17 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, FlatList } fro
 import { useRouter } from 'expo-router';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
-import SearchBar from '../components/ui/SearchBar';
-import MarketingBanner from '../components/ui/MarketingBanner';
-import CustomDropdown from '../components/ui/Dropdown';
-import ProductCard from '../components/ui/ProductCard'; 
-import BottomNavbar from '../components/ui/BottomNavbar'; // *** 1. Import Navbar ***
+import SearchBar from '../../components/ui/SearchBar'; 
+import MarketingBanner from '../../components/ui/MarketingBanner'; 
+import CustomDropdown from '../../components/ui/Dropdown'; 
+import ProductCard from '../../components/ui/ProductCard'; 
+import FarmerNavbar from '../../components/ui/FarmerNavbar'; // แก้ Import เป็น BuyerNavbar
 
 // ----------------------------------------------------
-// ข้อมูลจำลอง (DUMMY DATA) - แก้ไข Type ของ value เป็น string
+// ข้อมูลจำลอง (DUMMY DATA) 
 // ----------------------------------------------------
-
-// 1. ข้อมูลสำหรับ Dropdown
 const typeItems = [
+    { label: 'ประเภท', value: 'all' },
     { label: 'ทุเรียน', value: 'durian' },
     { label: 'มะม่วง', value: 'mango' },
     { label: 'องุ่น', value: 'grape' },
@@ -22,6 +21,7 @@ const typeItems = [
 ];
 
 const areaItems = [
+    { label: 'พื้นที่', value: 'all' },
     { label: '5 กม.', value: '5' },     
     { label: '20 กม.', value: '20' },    
     { label: '30 กม.', value: '30' },
@@ -29,11 +29,11 @@ const areaItems = [
 ];
 
 const priceItems = [
+    { label: 'ราคา', value: 'all' },
     { label: 'ต่ำ-สูง', value: 'low-high' },
     { label: 'สูง-ต่ำ', value: 'high-low' },
 ];
 
-// 2. ข้อมูลรายการสินค้า (ตามภาพ UI)
 const dummyProducts = [
     { id: '1', productName: 'มะม่วงน้ำดอกไม้', price: 30, unit: 'กก.', grade: 'เกรด C', distance: '2.5 กม.', imageUrl: 'https://picsum.photos/id/66/300/200' },
     { id: '2', productName: 'ทุเรียนหมอนทอง', price: 95, unit: 'กก.', grade: 'เกรด C', distance: '10 กม.', imageUrl: 'https://picsum.photos/id/1080/300/200' },
@@ -51,10 +51,9 @@ const HomeScreen: React.FC = () => {
 
     const router = useRouter();
 
-    // *** State สำหรับ Navbar ***
-    const [activeTab, setActiveTab] = useState<'home' | 'add' | 'profile'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'chart' | 'add' | 'notifications' | 'profile'>('home');
 
-    // State สำหรับจัดการ Dropdown (ใช้ string)
+    // Dropdown States
     const [typeOpen, setTypeOpen] = useState(false);
     const [typeValue, setTypeValue] = useState<string | null>('all');
     const [typeItemsState, setTypeItemsState] = useState(typeItems);
@@ -69,23 +68,19 @@ const HomeScreen: React.FC = () => {
 
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
-    // ฟังก์ชันทดสอบการค้นหา
     const handleSearch = (query: string) => {
         Alert.alert("ค้นหาสำเร็จ", `คุณค้นหา: "${query}"`);
         console.log("User searched for:", query);
     };
 
-    // ฟังก์ชันทดสอบการกดปุ่ม Banner (Navigation)
     const handleBannerPress = () => {
         router.push('/farmer/RegisterSellerScreen'); 
     };
 
-    // ฟังก์ชันทดสอบการกด Product Card
     const handleProductPress = (productName: string) => {
         Alert.alert("รายละเอียดสินค้า", `เปิดหน้า: ${productName}`);
     };
 
-    // ฟังก์ชันสำหรับควบคุมการเปิด-ปิด Dropdown เพื่อให้เปิดได้ทีละตัว
     const onOpenType = () => {
         setAreaOpen(false); setPriceOpen(false); setDistanceOpen(false);
         setTypeOpen(true);
@@ -102,27 +97,30 @@ const HomeScreen: React.FC = () => {
     };
     
     // *** ฟังก์ชันสำหรับ Navbar ***
-    const handleNavPress = (tab: 'home' | 'add' | 'profile') => {
+    const handleNavPress = (tab: 'home' | 'chart' | 'add' | 'notifications' | 'profile') => {
         setActiveTab(tab);
-        // สามารถเพิ่ม logic การ navigate ได้ที่นี่
         if (tab === 'home') {
+            //หน้าเดิม
+        } else if (tab === 'chart') {
+             router.push('/farmer/dashboard'); // ผู้ซื้อสร้าง Demand
         } else if (tab === 'add') {
-             router.push('/farmer/RegisterSellerScreen');
-        } else if (tab === 'profile') {
-             router.push('/farmer/RegisterSellerScreen');;
+             router.push('/farmer/createPost'); 
+        }
+        else if (tab === 'notifications') {
+             //router.push('/farmer/notificationDemand'); 
+        }
+        else if (tab === 'profile') {
+             router.push('/farmer/farmerProfile'); 
         }
     };
 
 
     return (
         <SafeAreaView style={styles.fullScreen}>
-            {/* View หลักที่ใช้ Flex 1 เพื่อห่อหุ้ม ScrollView และ Navbar */}
             <View style={styles.contentWrapper}> 
                 
-                {/* ScrollView สำหรับเนื้อหาส่วนบน (Flex 1) */}
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}
-                    // ปิด Dropdown เมื่อเลื่อนหน้าจอ
                     onScrollBeginDrag={() => {
                         setTypeOpen(false);
                         setAreaOpen(false);
@@ -131,7 +129,7 @@ const HomeScreen: React.FC = () => {
                 >
 
                     {/* --- 1. Search Bar Component --- */}
-                    <View style={styles.componentContainer}>
+                    <View style={[styles.componentContainer, { paddingHorizontal: 15 }]}>
                         <SearchBar
                             onSearch={handleSearch}
                             placeholder="ลองค้นหาสินค้าที่นี่..."
@@ -142,7 +140,7 @@ const HomeScreen: React.FC = () => {
                     <View style={styles.componentContainer}>
                         <MarketingBanner
                             onPress={handleBannerPress}
-                            imageSource={require('../assets/images/banner.png')}
+                            imageSource={require('../../assets/images/banner.png')}
                         />
                     </View>
 
@@ -213,14 +211,16 @@ const HomeScreen: React.FC = () => {
 
                 </ScrollView>
                 
-                {/* --- 6. Bottom Navbar Component (อยู่ล่างสุด) --- */}
-                <BottomNavbar
+                {/* --- 6. Bottom Navbar Component (เรียกใช้ FarmerNavbar) --- */}
+                <FarmerNavbar
                     onHomePress={() => handleNavPress('home')}
+                    onChartPress={() => handleNavPress('chart')} 
                     onAddPress={() => handleNavPress('add')}
+                    onNotificationsPress={() => handleNavPress('notifications')}
                     onProfilePress={() => handleNavPress('profile')}
                     activeTab={activeTab}
                 />
-            
+        
             </View>
         </SafeAreaView>
     );
@@ -233,13 +233,11 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F7FAFC',
     },
-    // View ที่ห่อหุ้มเนื้อหาทั้งหมด (ScrollView + Navbar)
     contentWrapper: {
         flex: 1,
     },
     scrollContent: {
         paddingVertical: 10,
-        // เพิ่ม paddingBottom เพื่อให้เนื้อหาส่วนล่างไม่ถูก Navbar บัง
         paddingBottom: 60, 
     },
     header: {
@@ -288,7 +286,7 @@ const styles = StyleSheet.create({
     },
     productList: {
         paddingHorizontal: 30, 
-        justifyContent: 'space-between',
+        justifyContent: 'space-between', 
     },
 });
 

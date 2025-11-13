@@ -57,7 +57,7 @@ const FarmerProfileScreen = () => {
 
   const handleHistorySale = () => {
     // ไปยังหน้า "ประวัติการโพสต์ขาย" (ตามที่คุณบอกคือ app/historySale.tsx)
-    router.push('../historySale');
+    router.push('/farmer/historySale');
   };
 
   // --- 2. เพิ่มฟังก์ชันสำหรับ Navbar ---
