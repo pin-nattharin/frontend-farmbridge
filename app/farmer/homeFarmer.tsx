@@ -77,8 +77,17 @@ const HomeScreen: React.FC = () => {
         router.push('/farmer/RegisterSellerScreen'); 
     };
 
-    const handleProductPress = (productName: string) => {
-        Alert.alert("รายละเอียดสินค้า", `เปิดหน้า: ${productName}`);
+    // --- 1. แก้ไขฟังก์ชันนี้ ---
+    const handleProductPress = (productId: string) => {
+        // Alert.alert("รายละเอียดสินค้า", `เปิดหน้า: ${productName}`); // ปิด Alert
+        console.log("Navigating to product:", productId);
+
+        // --- 2. ใช้ router.push พร้อมส่ง params ---
+        // (สมมติว่าไฟล์ productDetail.tsx อยู่ที่ app/buyer/productDetail.tsx)
+        router.push({
+            pathname: '/productDetail', 
+            params: { id: productId }
+        });
     };
 
     const onOpenType = () => {
@@ -201,7 +210,8 @@ const HomeScreen: React.FC = () => {
                                 grade={item.grade}
                                 distance={item.distance}
                                 imageUrl={item.imageUrl}
-                                onPress={() => handleProductPress(item.productName)}
+                                // --- 3. แก้ไข onPress ให้ส่ง item.id ---
+                                onPress={() => handleProductPress(item.id)}
                             />
                         )}
                         numColumns={2} 
@@ -227,7 +237,7 @@ const HomeScreen: React.FC = () => {
 };
 
 // ----------------------------------------------------
-// Styles สำหรับหน้าจอทดสอบ
+// Styles (คงเดิม)
 const styles = StyleSheet.create({
     fullScreen: {
         flex: 1,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, Dimensions, Platform, Alert } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+// --- 1. Import useLocalSearchParams เพิ่ม ---
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 // เปลี่ยนกลับไปใช้ LineChart
 import { LineChart } from 'react-native-chart-kit'; 
@@ -64,10 +65,17 @@ type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
 
 export default function ProductDetailScreen() {
     const router = useRouter();
+    
+    // --- 2. รับค่า id ที่ถูกส่งมา ---
+    const { id } = useLocalSearchParams<{ id: string }>();
+
     const [activeTab, setActiveTab] = useState<ActiveTab>('home');
 
+    // [ทดสอบ] แสดง ID ที่ได้รับใน console
+    console.log("Received Product ID:", id);
+
     const handleBuy = () => {
-        Alert.alert('ยืนยันการซื้อ', `คุณต้องการซื้อ ${productData.productName} ในราคานี้หรือไม่?`);
+        Alert.alert('ยืนยันการซื้อ', `คุณต้องการซื้อ ${productData.productName} (ID: ${id}) ในราคานี้หรือไม่?`);
     };
 
     const handleNavPress = (tab: ActiveTab) => {
@@ -116,8 +124,10 @@ export default function ProductDetailScreen() {
                             </Text>
                         </View>
 
-                        {/* Product Title */}
-                        <Text style={styles.productTitle}>{productData.productName}</Text>
+                        {/* Product Title (เพิ่ม ID เพื่อทดสอบ) */}
+                        <Text style={styles.productTitle}>
+                            {productData.productName} (ID: {id}) 
+                        </Text>
 
                         {/* Details */}
                         <Text style={styles.detailLabel}>
