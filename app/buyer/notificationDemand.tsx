@@ -4,10 +4,10 @@ import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons'; 
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้อง ***
-import BuyerNavbar from '../../components/ui/BuyerNavbar'; // 💡 สมมติว่า BuyerNavbar อยู่ใน components/ui
+import BuyerNavbar from '../../components/ui/BuyerNavbar'; 
 
 // ----------------------------------------------------
-// 1. DUMMY DATA
+// 1. DUMMY DATA (คงเดิม)
 // ----------------------------------------------------
 const notificationList = [
     { 
@@ -15,7 +15,7 @@ const notificationList = [
         product: 'มะม่วง พร้อมส่ง', 
         detail: '(ใกล้แค่ 2.5 กม.)', 
         message: 'สบายดีฟาร์มเพิ่งลงขายสินค้าที่คุณมองหา คลิกดูเลยก่อนของหมด!',
-        isNew: true, // สำหรับแถบสีน้ำเงินด้านข้าง
+        isNew: true, 
     },
     { 
         id: '2', 
@@ -27,7 +27,7 @@ const notificationList = [
 ];
 
 // ----------------------------------------------------
-// 2. Component: NotificationCard (แทน ListingCard ในบริบทนี้)
+// 2. Component: NotificationCard (คงเดิม)
 // ----------------------------------------------------
 
 interface NotificationCardProps {
@@ -51,7 +51,6 @@ const NotificationCard: React.FC<NotificationCardProps> = ({
             onPress={onPress}
             activeOpacity={0.8}
         >
-            {/* แถบสีน้ำเงินด้านซ้าย (Blue Indicator) */}
             {isNew && <View style={cardStyles.newIndicator} />}
 
             <View style={cardStyles.content}>
@@ -68,7 +67,7 @@ const NotificationCard: React.FC<NotificationCardProps> = ({
 
 
 // ----------------------------------------------------
-// 3. หน้าจอหลัก NotificationScreen
+// 3. หน้าจอหลัก NotificationScreen (แก้ไขการนำทาง)
 // ----------------------------------------------------
 
 type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
@@ -77,14 +76,15 @@ export default function NotificationScreen() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<ActiveTab>('notify'); 
 
+    // 🆕 แก้ไข: นำทางไปยังหน้า productdetail พร้อมส่ง ID
     const handleCardPress = (item: typeof notificationList[0]) => {
-        Alert.alert('เปิดรายการ', `คุณต้องการดูสินค้า: ${item.product} หรือไม่?`);
-        // router.push(`/product/${item.id}`);
+        // ใช้ router.push เพื่อนำทางไปยัง /productdetail?id={item.id}
+        router.push(`/productDetail?id=${item.id}`);
+        console.log(`Navigating to productdetail for ID: ${item.id}`);
     };
 
     const handleNavPress = (tab: ActiveTab) => {
         setActiveTab(tab);
-        // ⚠️ โค้ดจริง: ใช้ router.replace/push ตามโครงสร้าง App ของคุณ
         if (tab === 'home') router.replace('/buyer/homeBuyer'); 
         else if (tab === 'add') router.push('/buyer/createDemand');
         else if (tab === 'profile') router.replace('/buyer/buyerProfile');
@@ -95,29 +95,30 @@ export default function NotificationScreen() {
         <SafeAreaView style={styles.safeArea}>
             <Stack.Screen 
                 options={{ 
-                    // 1. แสดง Header ของ Stack Router และกำหนด Style
                     headerShown: true, 
-                    title: 'การแจ้งเตือน', 
+                    title: 'การแจ้งเตือน',
                 }} 
             />
             
             <View style={styles.contentWrapper}>
                 
-                {/* Custom Header (ตามภาพ) */}
-            <View style={styles.contentWrapper}>
-                    <Text style={styles.pageTitle}>การแจ้งเตือน</Text>
-                </View>
-
+                {/* Custom Title (อยู่ใต้ Stack Header) */}
+                <Text style={styles.pageTitle}>การแจ้งเตือน</Text>
+                
                 {/* Body Content */}
                 <ScrollView contentContainerStyle={styles.scrollContent}>
                     {notificationList.map((item) => (
                         <NotificationCard
                             key={item.id}
-                            {...item}
+                            // 🆕 ใช้ \n ใน message เพื่อให้ขึ้นบรรทัดใหม่ตามภาพตัวอย่าง
+                            product={item.product}
+                            detail={item.detail}
+                            message={item.message.replace(' คลิกดูเลยก่อนของหมด!', '\nคลิกดูเลยก่อนของหมด!')}
+                            isNew={item.isNew}
                             onPress={() => handleCardPress(item)}
                         />
                     ))}
-                    <View style={{ height: 200 }} /> 
+                    <View style={{ height: 20 }} /> 
                 </ScrollView>
                 
                 {/* Bottom Navbar */}
@@ -135,7 +136,7 @@ export default function NotificationScreen() {
 }
 
 // ----------------------------------------------------
-// 4. Stylesheet
+// 4. Stylesheet (ปรับปรุง)
 // ----------------------------------------------------
 
 const styles = StyleSheet.create({
@@ -146,36 +147,27 @@ const styles = StyleSheet.create({
     contentWrapper: {
         flex: 1,
     },
+    // 🆕 Style สำหรับ Stack Header Title
+    stackHeaderTitle: {
+        fontWeight: 'bold',
+        fontSize: 20,
+        color: '#333',
+    },
     pageTitle: {
         fontSize: 24,
         fontWeight: 'bold',
         color: '#0056b3',
         marginHorizontal: 16,
-        marginTop: 40,
+        marginTop: 15,
         marginBottom: 10,
-        textAlign: 'center',
-    },
-    headerContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 15,
-        paddingVertical: 15,
-        paddingTop: 50, // เผื่อพื้นที่ด้านบนสุด
-        backgroundColor: 'white',
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#333',
-        marginLeft: 15,
+        textAlign: 'center', // จัดให้อยู่ตรงกลางตามภาพตัวอย่าง
     },
     scrollContent: {
-        paddingVertical: 15,
-        paddingHorizontal: 15,
+        paddingVertical: 5,
+        paddingHorizontal: 16,
         paddingBottom: 80, // เว้นที่ว่างให้ Navbar
     },
+    // ลบ headerContainer, headerTitle
 });
 
 
@@ -192,24 +184,25 @@ const cardStyles = StyleSheet.create({
         shadowOpacity: 0.08,
         shadowRadius: 3,
         elevation: 2,
-        overflow: 'hidden', // สำคัญสำหรับแถบสีด้านซ้าย
+        overflow: 'hidden', 
     },
     cardNew: {
-        // อาจจะเพิ่ม border สีฟ้าอ่อนถ้าต้องการ
+        // ...
     },
     newIndicator: {
         position: 'absolute',
         top: 0,
         left: 0,
         bottom: 0,
-        width: 8, // ความหนาของแถบสี
-        backgroundColor: '#0056b3', // สีน้ำเงินเข้ม
+        width: 8, 
+        backgroundColor: '#0056b3', 
         borderTopLeftRadius: 12,
         borderBottomLeftRadius: 12,
     },
     content: {
         flex: 1,
-        paddingLeft: 5, // เว้นระยะห่างจากแถบสีน้ำเงิน (ถ้ามี)
+        // ปรับ paddingLeft เนื่องจากแถบสีน้ำเงินอยู่ด้านซ้าย
+        paddingLeft: 5, 
     },
     productName: {
         fontSize: 16,

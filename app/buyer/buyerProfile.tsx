@@ -58,17 +58,21 @@ const FarmerProfileScreen = () => {
         router.push('/editProfile');
     };
 
+    const handleHistoryBuy = () => {
+        router.push('/buyer/historyBuy');
+    }
+
     const handleLogout = () => {
         Alert.alert(
             "ออกจากระบบ",
             "คุณต้องการออกจากระบบหรือไม่?",
             [
                 { text: "ยกเลิก", style: "cancel" },
-                { 
-                    text: "ออกจากระบบ", 
+                {
+                    text: "ออกจากระบบ",
                     onPress: () => {
                         console.log("User logged out");
-                        router.replace('../loginScreen'); 
+                        router.replace('../loginScreen');
                     },
                     style: "destructive"
                 }
@@ -102,7 +106,7 @@ const FarmerProfileScreen = () => {
     return (
         <SafeAreaView style={styles.safeArea}>
             {/* 🆕 ห่อหุ้ม ScrollView และ Navbar ด้วย View */}
-            <View style={styles.contentWrapper}> 
+            <View style={styles.contentWrapper}>
                 <ScrollView style={styles.container}>
                     {/* --- 1. ส่วนหัวสีน้ำเงิน --- */}
                     <View style={styles.headerBackground}>
@@ -127,6 +131,12 @@ const FarmerProfileScreen = () => {
                             >
                                 <Text style={styles.buttonOutlineText}>แก้ไขโปรไฟล์</Text>
                             </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.buttonSolid}
+                                onPress={handleHistoryBuy}
+                            >
+                                <Text style={styles.buttonSolidText}>ประวัติการซื้อ</Text>
+                            </TouchableOpacity>
                         </View>
 
                         {/* --- กล่องข้อมูลส่วนตัว --- */}
@@ -137,10 +147,10 @@ const FarmerProfileScreen = () => {
                             <InfoField label="Email Address" value={farmerData.email} />
                             <InfoField label="Phone" value={farmerData.phone} />
                         </View>
-                        
+
                         {/* ปุ่ม Logout */}
-                        <TouchableOpacity 
-                            style={styles.logoutButton} 
+                        <TouchableOpacity
+                            style={styles.logoutButton}
                             onPress={handleLogout}
                         >
                             <Text style={styles.logoutButtonText}>ออกจากระบบ</Text>
@@ -148,7 +158,7 @@ const FarmerProfileScreen = () => {
 
                     </View>
                 </ScrollView>
-                
+
                 {/* *** 🆕 Bottom Navbar Component (อยู่ด้านล่างสุด) *** */}
                 <BuyerNavbar
                     onHomePress={() => handleNavPress('home')}
@@ -171,7 +181,7 @@ const styles = StyleSheet.create({
     },
     // 🆕 ต้องเพิ่ม contentWrapper เพื่อให้ Navbar ติดอยู่ด้านล่าง
     contentWrapper: {
-        flex: 1, 
+        flex: 1,
     },
     container: {
         flex: 1,
