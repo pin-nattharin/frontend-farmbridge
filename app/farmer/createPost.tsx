@@ -9,13 +9,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 // Import Components ที่เราสร้างไว้
 import Button from '../../components/ui/Button';
 import CustomDropdown from '../../components/ui/Dropdown';
 import RoundedInput from '../../components/ui/RoundedInput';
+import CustomModal from '../../components/ui/Modal';
 
 const allGradesData = {
   durian: [
@@ -38,6 +40,19 @@ const allGradesData = {
     { label: 'เกรด C (มีรอยช้ำเล็กน้อย)', value: 'C' },
     { label: 'ต่ำกว่าเกรด C (ช้ำ บิดเบี้ยว)', value: 'C-' },
   ],
+};
+
+const priceSuggestionData = {
+  durian: '100-120',
+  mango: '14-17', // (อ้างอิงจากรูป UI ของคุณ)
+  mangosteen: '35-45',
+  grape: '80-90',
+};
+const productLabels = {
+  durian: 'ทุเรียน',
+  mango: 'มะม่วง',
+  mangosteen: 'มังคุด',
+  grape: 'องุ่น',
 };
 
 export default function CreatePostScreen() {
@@ -66,11 +81,26 @@ export default function CreatePostScreen() {
   ]);
   const [gradeItems, setGradeItems] = useState<Array<{label: string, value: string}>>([]);
 
+  // 4. (ใหม่) เพิ่ม State สำหรับ Modal
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [modalPrice, setModalPrice] = useState('');
+  const [modalProduct, setModalProduct] = useState('');
 
   useEffect(() => {
     if (product_name) {
       const newGrades = allGradesData[product_name as keyof typeof allGradesData] || [];
       setGradeItems(newGrades);
+
+      // --- ส่วนที่เพิ่มเข้ามาสำหรับ Modal ---
+      const price = priceSuggestionData[product_name as keyof typeof priceSuggestionData];
+      const label = productLabels[product_name as keyof typeof productLabels];
+
+      if (price && label) {
+        setModalProduct(label);
+        setModalPrice(price);
+        setModalVisible(true); // <-- สั่งให้ Modal แสดง!
+      }
+
     } else {
       setGradeItems([]);
     }
@@ -255,6 +285,25 @@ export default function CreatePostScreen() {
         </View> */}
 
       </ScrollView>
+      {/* 6. (ใหม่) เพิ่ม Modal เข้ามาที่นี่ */}
+      <CustomModal 
+        isVisible={isModalVisible} 
+        onClose={() => setModalVisible(false)}
+      >
+        {/* นี่คือเนื้อหาที่จะแสดงใน Modal (Children) */}
+        <View style={styles.modalContentContainer}>
+          <Text style={styles.modalTitle}>คำแนะนำ</Text>
+          <Text style={styles.modalText}>
+            5 วันที่ผ่านมา {modalProduct} มีราคาอยู่ที่ {modalPrice} บาท/กิโลกรัม
+          </Text>
+          <TouchableOpacity 
+            style={styles.modalButton} 
+            onPress={() => setModalVisible(false)}
+          >
+            <Text style={styles.modalButtonText}>ตกลง</Text>
+          </TouchableOpacity>
+        </View>
+      </CustomModal>
     </>
   );
 }
@@ -323,5 +372,34 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 16,
     color: '#333',
+  },
+  modalContentContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#0056b3', // (สีน้ำเงินตาม UI)
+    marginBottom: 15,
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 25,
+    lineHeight: 24,
+  },
+  modalButton: {
+    backgroundColor: '#28a745', // (สีเขียวตาม UI)
+    borderRadius: 25, // (ทำให้ขอบมน)
+    paddingVertical: 12,
+    paddingHorizontal: 50,
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
