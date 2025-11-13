@@ -1,14 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient'; // สำหรับพื้นหลังไล่ระดับ
+import React, { useState } from 'react'; // 1. Import useState
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert } from 'react-native'; // 2. Import Alert
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้อง ***
 import RoundedInput from '../../components/ui/RoundedInput'; 
-import Button from '../../components/ui/Button'; 
+import Button from '../../components/ui/Button';
+import api from '../../services/api'; // 3. Import api service
 
 // สร้างตัวแปร styles ที่สามารถ export เพื่อให้ LoginScreen ใช้งานได้
 export const registerBaseStyles = StyleSheet.create({
+    // ... (ส่วน Styles ไม่มีการเปลี่ยนแปลง) ...
     fullScreen: {
         flex: 1,
         backgroundColor: '#FFFFFF',
@@ -19,7 +21,6 @@ export const registerBaseStyles = StyleSheet.create({
         left: 0,
         right: 0,
         height: '100%', 
-        // ลบ backgroundColor และ opacity ออก เพราะ LinearGradient จัดการแทน
     },
     scrollContainer: {
         paddingTop: 90,
@@ -70,7 +71,6 @@ export const registerBaseStyles = StyleSheet.create({
       backgroundColor: '#22AB67', 
       borderColor: '#22AB67',
     },
-    // เพิ่ม link styles ที่จำเป็นสำหรับ LoginScreen
     linkContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
@@ -86,15 +86,60 @@ export const registerBaseStyles = StyleSheet.create({
 const RegisterBuyerScreen: React.FC = () => {
   const router = useRouter();
 
-  const handleRegister = () => {
-    router.push('/LoginScreen');
+  // 4. เพิ่ม States สำหรับฟอร์มทั้งหมด
+  const [fullname, setFullname] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [address, setAddress] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // 5. เปลี่ยน handleRegister ให้เป็น async และเพิ่ม Logic
+  const handleRegister = async () => {
+    if (loading) return;
+
+    // 6. ตรวจสอบข้อมูล
+    if (!fullname || !email || !password) {
+      Alert.alert('ข้อผิดพลาด', 'กรุณากรอกชื่อ, อีเมล และรหัสผ่าน');
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert('ข้อผิดพลาด', 'รหัสผ่านไม่ตรงกัน');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 7. ยิง API (Backend จะรู้ว่าเป็น Buyer เพราะไม่มี farmer_doc_url)
+      const response = await api.post('/api/auth/register', {
+        fullname: fullname,
+        email: email.toLowerCase(),
+        password: password,
+        phone: phone,
+        address: address
+        // ไม่ต้องส่ง farmer_doc_url
+      });
+
+      // 8. สมัครสำเร็จ
+      Alert.alert('สำเร็จ!', 'สมัครสมาชิกเรียบร้อยแล้ว, กรุณาเข้าสู่ระบบ');
+      router.push('/LoginScreen'); // กลับไปหน้า Login
+
+    } catch (err) {
+      // 9. สมัครไม่สำเร็จ
+      console.error(err.response ? err.response.data : err);
+      // ตรวจสอบว่ามี err.response ก่อนใช้
+      const message = err.response?.data?.message || 'เกิดข้อผิดพลาดในการสมัคร';
+      Alert.alert('สมัครไม่สำเร็จ', message); // เช่น "Email already exists"
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <View style={registerBaseStyles.fullScreen}>
-      {/* ใช้ LinearGradient สำหรับพื้นหลังไล่ระดับสี */}
       <LinearGradient
-        colors={['#22AB67', '#074E9F']} // สีเขียว -> ฟ้า
+        colors={['#22AB67', '#074E9F']}
         style={registerBaseStyles.backgroundTop}
         start={{ x: 0.1, y: 0.1 }}
         end={{ x: 1, y: 1 }}
@@ -104,18 +149,56 @@ const RegisterBuyerScreen: React.FC = () => {
         <View style={registerBaseStyles.card}>
           <Text style={registerBaseStyles.header}>สมัครสมาชิก</Text>
 
-          <RoundedInput label="ชื่อ" placeholder="ชื่อ-นามสกุล" />
-          <RoundedInput label="อีเมล" placeholder="example@mail.com" keyboardType="email-address" />
-          <RoundedInput label="เบอร์โทรศัพท์" placeholder="0XXXXXXXXX" keyboardType="phone-pad" />
-          <RoundedInput label="รหัสผ่าน" placeholder="********" secureTextEntry />
-          <RoundedInput label="ยืนยันรหัสผ่าน" placeholder="********" secureTextEntry />
-          <RoundedInput label="ที่อยู่" placeholder="เลขที่, ถนน, ตำบล/แขวง, อำเภอ/เขต, จังหวัด" multiline />
+          {/* 10. เชื่อมต่อ State เข้ากับ Input (เพิ่ม value และ onChangeText) */}
+          <RoundedInput 
+            label="ชื่อ" 
+            placeholder="ชื่อ-นามสกุล" 
+            value={fullname} 
+            onChangeText={setFullname} 
+          />
+          <RoundedInput 
+            label="อีเมล" 
+            placeholder="example@mail.com" 
+            keyboardType="email-address" 
+            value={email} 
+            onChangeText={setEmail} 
+            autoCapitalize="none"
+          />
+          <RoundedInput 
+            label="เบอร์โทรศัพท์" 
+            placeholder="0XXXXXXXXX" 
+            keyboardType="phone-pad" 
+            value={phone} 
+            onChangeText={setPhone} 
+          />
+          <RoundedInput 
+            label="รหัสผ่าน" 
+            placeholder="********" 
+            secureTextEntry 
+            value={password} 
+            onChangeText={setPassword} 
+          />
+          <RoundedInput 
+            label="ยืนยันรหัสผ่าน" 
+            placeholder="********" 
+            secureTextEntry 
+            value={confirmPassword} 
+            onChangeText={setConfirmPassword} 
+          />
+          <RoundedInput 
+            label="ที่อยู่" 
+            placeholder="เลขที่, ถนน, ตำบล/แขวง, อำเภอ/เขต, จังหวัด" 
+            multiline 
+            value={address} 
+            onChangeText={setAddress} 
+          />
           
           <Button 
-            title="สมัครสมาชิก" 
+            title={loading ? 'กำลังสมัคร...' : 'สมัครสมาชิก'} // 11. แสดง Loading
             onPress={handleRegister} 
             variant="default" 
             style={registerBaseStyles.registerButton}
+            disabled={loading} // 12. ปิดปุ่มตอนโหลด
           />
         </View>
       </ScrollView>

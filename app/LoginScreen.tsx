@@ -2,11 +2,13 @@ import { LinearGradient } from 'expo-linear-gradient'; // สำหรับพ�
 import { useRouter } from 'expo-router'; // สำหรับการนำทาง
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้อง ***
 import Button from '../components/ui/Button';
 import RoundedInput from '../components/ui/RoundedInput';
-import { registerBaseStyles } from './farmer/RegisterSellerScreen'; // Import Styles จาก RegisterScreen
+import { registerBaseStyles } from './farmer/RegisterSellerScreen';
+import api from '../services/api';
 
 const LoginScreen: React.FC = () => {
   const router = useRouter(); // เรียกใช้ Router
@@ -16,13 +18,46 @@ const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
     
-  const handleLogin = () => {
-    console.log('Login pressed');
+  const handleLogin = async () => { // <-- 4. เปลี่ยนเป็น async
+    if (loading) return;
+    if (!email || !password) {
+      Alert.alert('ข้อผิดพลาด', 'กรุณากรอกอีเมลและรหัสผ่าน');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 5. ยิง API (Backend ของคุณ auto-detect role)
+      const response = await api.post('/api/auth/login', { 
+        email: email.toLowerCase(), 
+        password: password 
+      });
+
+      // 6. Login สำเร็จ (ได้ token)
+      const { token, user } = response.data;
+      
+      // 7. เก็บ Token ลงในเครื่อง
+      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+
+      // 8. นำทางไปหน้าหลัก (เช่น Dashboard)
+      Alert.alert('สำเร็จ', 'เข้าสู่ระบบเรียบร้อย');
+      // *** เปลี่ยน '/(tabs)/dashboard' ไปยัง Path ที่ถูกต้องของคุณ ***
+      router.replace('/home'); 
+
+    } catch (err) {
+      // 9. Login ไม่สำเร็จ
+      console.error(err.response ? err.response.data : err);
+      const message = err.response?.data?.message || 'เกิดข้อผิดพลาด';
+      Alert.alert('เข้าสู่ระบบไม่สำเร็จ', message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRegisterNavigation = () => {
     // นำทางไปยังไฟล์ app/Register.tsx
-    router.push('../RegisterSellerScreen');
+    router.push('/buyer/RegisterBuyerScreen');
   //router.push('/RegisterBuyerScreen');
   };
 
@@ -40,14 +75,28 @@ const LoginScreen: React.FC = () => {
         <Text style={loginStyles.header}>เข้าสู่ระบบ</Text>
         <View style={loginStyles.card}>
           
-          <RoundedInput label="อีเมล" placeholder="example@mail.com" keyboardType="email-address" />
-          <RoundedInput label="รหัสผ่าน" placeholder="********" secureTextEntry />
-
+          {/* 1. เชื่อมต่อ State เข้ากับ Input */}
+          <RoundedInput 
+            label="อีเมล" 
+            placeholder="example@email.com" 
+            keyboardType="email-address" 
+            value={email} 
+            onChangeText={setEmail}
+            autoCapitalize="none"
+          />
+          <RoundedInput 
+            label="รหัสผ่าน" 
+            placeholder="********" 
+            secureTextEntry 
+            value={password}
+            onChangeText={setPassword}
+          />
           <Button 
-            title="เข้าสู่ระบบ" 
+            title={loading ? 'กำลังโหลด...' : 'เข้าสู่ระบบ'} // <-- 1. เปลี่ยน title
             onPress={handleLogin} 
             variant="default"
             style={loginStyles.loginButton}
+            disabled={loading} // <-- 2. เพิ่ม disabled
           />
           
           <View style={loginStyles.linkContainer}>

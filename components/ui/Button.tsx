@@ -9,6 +9,7 @@ interface ButtonProps {
   textStyle?: StyleProp<TextStyle>; // Style สำหรับตัวหนังสือ
   // <<< แก้ไข: เพิ่ม 'confirm' และ 'cancel' เข้าไปใน type
   variant?: 'default' | 'ghost' | 'cancel' | 'banner';
+  disabled?: boolean;
 }
 
 const Button = ({ title, onPress, style, textStyle, variant = 'default' }: ButtonProps) => {
