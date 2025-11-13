@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 // *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
 import BuyerNavbar from '../../components/ui/BuyerNavbar';
 // --- (จำลอง) ข้อมูลที่ดึงมาจาก API/Database ---
-const farmerData = {
+const buyerData = {
     id: 1,
     fullname: 'ณัฐรินทร์ อาณัติธนันท์กุล',
     email: 'pin@gmail.com',
@@ -48,7 +48,7 @@ const InfoField = ({ label, value }: { label: string; value: string }) => (
 );
 
 // --- 3. หน้าจอโปรไฟล์หลัก ---
-const FarmerProfileScreen = () => {
+const BuyerProfileScreen = () => {
 
     const router = useRouter();
     // *** 🆕 State สำหรับ Navbar ***
@@ -99,9 +99,9 @@ const FarmerProfileScreen = () => {
     // ------------------------------------
 
 
-    const initials = getInitials(farmerData.fullname);
-    const firstName = farmerData.fullname.split(' ')[0] || '';
-    const lastName = farmerData.fullname.split(' ')[1] || '';
+    const initials = getInitials(buyerData.fullname);
+    const firstName = buyerData.fullname.split(' ')[0] || '';
+    const lastName = buyerData.fullname.split(' ')[1] || '';
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -121,7 +121,7 @@ const FarmerProfileScreen = () => {
                         </View>
 
                         {/* --- ชื่อและ Badge --- */}
-                        <Text style={styles.fullName}>{farmerData.fullname}</Text>
+                        <Text style={styles.fullName}>{buyerData.fullname}</Text>
 
                         {/* --- ปุ่ม --- */}
                         <View style={styles.buttonRow}>
@@ -144,8 +144,8 @@ const FarmerProfileScreen = () => {
                             <Text style={styles.infoBoxTitle}>ข้อมูลส่วนตัว</Text>
                             <InfoField label="First Name" value={firstName} />
                             <InfoField label="Last Name" value={lastName} />
-                            <InfoField label="Email Address" value={farmerData.email} />
-                            <InfoField label="Phone" value={farmerData.phone} />
+                            <InfoField label="Email Address" value={buyerData.email} />
+                            <InfoField label="Phone" value={buyerData.phone} />
                         </View>
 
                         {/* ปุ่ม Logout */}
@@ -325,4 +325,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default FarmerProfileScreen;
+export default BuyerProfileScreen;
