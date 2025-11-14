@@ -1,5 +1,4 @@
-//buyerProfile
-import React, { useState } from 'react'; // 🆕 ต้องเพิ่ม useState เข้ามา
+import React, { useState, useEffect, useCallback} from 'react'; // 🟢 1. Import useEffect
 import {
     View,
     Text,
@@ -10,25 +9,16 @@ import {
     Alert,
 } from 'react-native';
 
-import { useRouter } from 'expo-router';
-
-// *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
+import { useRouter, useFocusEffect } from 'expo-router';
 import BuyerNavbar from '../../components/ui/BuyerNavbar';
-// --- (จำลอง) ข้อมูลที่ดึงมาจาก API/Database ---
-const buyerData = {
-    id: 1,
-    fullname: 'ณัฐรินทร์ อาณัติธนันท์กุล',
-    email: 'pin@gmail.com',
-    phone: '0925568246',
-    is_active: true,
-};
+import AsyncStorage from '@react-native-async-storage/async-storage'; // 🟢 2. Import AsyncStorage
 
-// กำหนด Type สำหรับ Active Tab (ต้องทำซ้ำ หรือนำเข้าจากที่อื่น)
+// --- (ลบ const buyerData ... ที่เป็นข้อมูลจำลองทิ้งไป) --- 
+
+// (Type ActiveTab เหมือนเดิม)
 type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
 
-/**
- * 1. ฟังก์ชันสร้างชื่อย่อ (Initials)
- */
+// (ฟังก์ชัน getInitials เหมือนเดิม)
 const getInitials = (fullname: string): string => {
     if (!fullname) return '';
     const names = fullname.split(' ');
@@ -37,9 +27,7 @@ const getInitials = (fullname: string): string => {
     return `${firstNameInitial}${lastNameInitial}`;
 };
 
-/**
- * 2. Helper Component สำหรับแสดงข้อมูล
- */
+// (Helper Component: InfoField เหมือนเดิม)
 const InfoField = ({ label, value }: { label: string; value: string }) => (
     <View style={styles.infoFieldContainer}>
         <Text style={styles.infoLabel}>{label}</Text>
@@ -51,8 +39,28 @@ const InfoField = ({ label, value }: { label: string; value: string }) => (
 const BuyerProfileScreen = () => {
 
     const router = useRouter();
-    // *** 🆕 State สำหรับ Navbar ***
     const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
+
+    // 🟢 3. สร้าง State มารับข้อมูลผู้ใช้
+    const [buyerData, setBuyerData] = useState<any>(null);
+
+    // 🟢 4. ดึงข้อมูลจากเมื่อเปิดหน้า
+    useFocusEffect(
+        useCallback(() => {
+            const loadUserData = async () => {
+                const userString = await AsyncStorage.getItem('user');
+                if (userString) {
+                    const userData = JSON.parse(userString);
+                    setBuyerData(userData);
+                    console.log("Profile data loaded:", userData);
+                } else {
+                    Alert.alert("Error", "ไม่พบข้อมูลผู้ใช้, กรุณาเข้าสู่ระบบใหม่");
+                    router.replace('/LoginScreen');
+                }
+            };
+            loadUserData();
+        }, []) // Dependency array ของ useCallback
+    );
 
     const handleEditProfile = () => {
         router.push('/editProfile');
@@ -62,6 +70,7 @@ const BuyerProfileScreen = () => {
         router.push('/buyer/historyBuy');
     }
 
+    // 🟢 5. (แก้ไข) แก้ไข Logout ให้เคลียร์ AsyncStorage (เหมือน farmerProfile)
     const handleLogout = () => {
         Alert.alert(
             "ออกจากระบบ",
@@ -70,9 +79,16 @@ const BuyerProfileScreen = () => {
                 { text: "ยกเลิก", style: "cancel" },
                 {
                     text: "ออกจากระบบ",
-                    onPress: () => {
-                        console.log("User logged out");
-                        router.replace('../loginScreen');
+                    onPress: async () => { // 
+                        try {
+                            await AsyncStorage.removeItem('token');
+                            await AsyncStorage.removeItem('user');
+                            console.log("User logged out, token cleared.");
+                            router.replace('../LoginScreen');
+                        } catch (e) {
+                             console.error("Failed to clear async storage", e);
+                             router.replace('../LoginScreen');
+                        }
                     },
                     style: "destructive"
                 }
@@ -80,86 +96,77 @@ const BuyerProfileScreen = () => {
         );
     };
 
-    // *** 🆕 ฟังก์ชันสำหรับ Navbar Navigation ***
+    // (ฟังก์ชัน handleNavPress เหมือนเดิม)
     const handleNavPress = (tab: ActiveTab) => {
         setActiveTab(tab);
-        // กำหนดเส้นทางนำทางหลักที่นี่
         if (tab === 'home') {
-            router.replace('/buyer/homeBuyer'); // ไปหน้าแรก
+            router.replace('/buyer/homeBuyer');
         } else if (tab === 'add') {
-            router.push('/buyer/createDemand'); // ไปหน้าสร้างโพสต์
+            router.push('/buyer/createDemand');
         } else if (tab === 'list') {
-            router.replace('/buyer/historyDemand'); // ไปหน้าประวัติการขอซื้อ
+            router.replace('/buyer/historyDemand');
         } else if (tab === 'notify') {
-            router.replace('/buyer/notificationDemand'); // ไปหน้าการแจ้งเตือน
-        } else if (tab === 'profile') {
-            //router.replace('./buyerProfile'); // อยู่หน้าเดิม (แต่ทำ replace เพื่อให้แน่ใจ)
+            router.replace('/buyer/notificationDemand');
         }
     };
-    // ------------------------------------
+    
+    // 🟢 6. เพิ่ม Loading Screen
+    if (!buyerData) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text>กำลังโหลดข้อมูล...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
-
+    // 🟢 7. (เหมือนเดิม) แต่ตอนนี้จะใช้ข้อมูลจริงจาก state
     const initials = getInitials(buyerData.fullname);
     const firstName = buyerData.fullname.split(' ')[0] || '';
     const lastName = buyerData.fullname.split(' ')[1] || '';
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            {/* 🆕 ห่อหุ้ม ScrollView และ Navbar ด้วย View */}
             <View style={styles.contentWrapper}>
                 <ScrollView style={styles.container}>
-                    {/* --- 1. ส่วนหัวสีน้ำเงิน --- */}
+                    {/* (ส่วน UI ทั้งหมดเหมือนเดิม แต่ตอนนี้จะแสดงข้อมูลจริง) */}
                     <View style={styles.headerBackground}>
                         <Text style={styles.headerTitle}>โปรไฟล์</Text>
                     </View>
 
-                    {/* --- 2. การ์ดสีขาวที่ลอยทับ --- */}
                     <View style={styles.contentCard}>
-                        {/* --- 3. วงกลมชื่อย่อ (ที่ลอยทับกึ่งกลาง) --- */}
                         <View style={styles.initialCircle}>
                             <Text style={styles.initialText}>{initials}</Text>
                         </View>
 
-                        {/* --- ชื่อและ Badge --- */}
                         <Text style={styles.fullName}>{buyerData.fullname}</Text>
 
-                        {/* --- ปุ่ม --- */}
                         <View style={styles.buttonRow}>
-                            <TouchableOpacity
-                                style={styles.buttonOutline}
-                                onPress={handleEditProfile}
-                            >
+                            <TouchableOpacity style={styles.buttonOutline} onPress={handleEditProfile}>
                                 <Text style={styles.buttonOutlineText}>แก้ไขโปรไฟล์</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.buttonSolid}
-                                onPress={handleHistoryBuy}
-                            >
+                            <TouchableOpacity style={styles.buttonSolid} onPress={handleHistoryBuy}>
                                 <Text style={styles.buttonSolidText}>ประวัติการซื้อ</Text>
                             </TouchableOpacity>
                         </View>
 
-                        {/* --- กล่องข้อมูลส่วนตัว --- */}
                         <View style={styles.infoBox}>
                             <Text style={styles.infoBoxTitle}>ข้อมูลส่วนตัว</Text>
                             <InfoField label="First Name" value={firstName} />
                             <InfoField label="Last Name" value={lastName} />
                             <InfoField label="Email Address" value={buyerData.email} />
+                            
                             <InfoField label="Phone" value={buyerData.phone} />
                         </View>
 
-                        {/* ปุ่ม Logout */}
-                        <TouchableOpacity
-                            style={styles.logoutButton}
-                            onPress={handleLogout}
-                        >
+                        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
                             <Text style={styles.logoutButtonText}>ออกจากระบบ</Text>
                         </TouchableOpacity>
 
                     </View>
                 </ScrollView>
 
-                {/* *** 🆕 Bottom Navbar Component (อยู่ด้านล่างสุด) *** */}
                 <BuyerNavbar
                     onHomePress={() => handleNavPress('home')}
                     onListPress={() => handleNavPress('list')}
@@ -173,23 +180,19 @@ const BuyerProfileScreen = () => {
     );
 };
 
-// --- 4. Stylesheet ---
+// --- (Styles ทั้งหมดเหมือนเดิม) ---
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: '#f4f4f4',
     },
-    // 🆕 ต้องเพิ่ม contentWrapper เพื่อให้ Navbar ติดอยู่ด้านล่าง
     contentWrapper: {
         flex: 1,
     },
     container: {
-        flex: 1,
+        flex: 1, 
         backgroundColor: '#f4f4f4',
     },
-    // ... (Styles อื่น ๆ ยังคงเดิม)
-
-    // 1. ส่วนหัวสีน้ำเงิน
     headerBackground: {
         backgroundColor: '#0056b3',
         height: 180,
@@ -202,7 +205,6 @@ const styles = StyleSheet.create({
         color: 'white',
         marginTop: 10,
     },
-    // 2. การ์ดสีขาว
     contentCard: {
         backgroundColor: 'white',
         borderTopLeftRadius: 30,
@@ -212,7 +214,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingTop: 80,
     },
-    // 3. วงกลมชื่อย่อ
     initialCircle: {
         width: 120,
         height: 120,
