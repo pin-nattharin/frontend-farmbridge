@@ -1,47 +1,50 @@
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
+// 🟢 1. เปลี่ยน Imports
+import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Alert,
-  Image,
   Platform,
-  ScrollView,
+  ScrollView, // (Import ScrollView)
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+// 🟢 2. เพิ่ม Import ไอคอน
+import { MaterialIcons } from '@expo/vector-icons'; 
 
-// Import Components ที่เราสร้างไว้
+// (Import Components และ api เหมือนเดิม)
 import Button from '../../components/ui/Button';
 import CustomDropdown from '../../components/ui/Dropdown';
 import RoundedInput from '../../components/ui/RoundedInput';
 import CustomModal from '../../components/ui/Modal';
+import api from '../../services/api';
 
+// (Data ทั้งหมดเหมือนเดิม)
 const allGradesData = {
-  durian: [
+  ทุเรียน: [
     { label: 'เกรด B (ทรงปกติ เปลือกไม่ช้ำมาก)', value: 'B' },
     { label: 'เกรด C (รูปทรงปกติ มีรอยช้ำเล็กน้อย)', value: 'C' },
     { label: 'ต่ำกว่าเกรด C (บิดเบี้ยว หนามหัก เปลือกช้ำ)', value: 'C-' },
   ],
-  mango: [
+  มะม่วง: [
     { label: 'เกรด B (รูปร่างสวย ไม่มีช้ำมาก)', value: 'B' },
     { label: 'เกรด C (มีรอยช้ำเล็กน้อย)', value: 'C' },
     { label: 'ต่ำกว่าเกรด C (ช้ำ บิดเบี้ยว)', value: 'C-' },
   ],
-  mangosteen: [
+  มังคุด: [
     { label: 'เกรด B (เปลือกเรียบ ช้ำเล็กน้อย)', value: 'B' },
     { label: 'เกรด C (มีรอยช้ำเล็กน้อย)', value: 'C' },
     { label: 'ต่ำกว่าเกรด C (ช้ำ บิดเบี้ยว)', value: 'C-' },
   ],
-  grape: [
+  องุ่น: [
     { label: 'เกรด B (ผิวเรียบ มีรอยช้ำเล็กน้อย)', value: 'B' },
     { label: 'เกรด C (มีรอยช้ำเล็กน้อย)', value: 'C' },
     { label: 'ต่ำกว่าเกรด C (ช้ำ บิดเบี้ยว)', value: 'C-' },
   ],
 };
-
 const priceSuggestionData = {
   durian: '100-120',
   mango: '14-17', // (อ้างอิงจากรูป UI ของคุณ)
@@ -58,121 +61,126 @@ const productLabels = {
 export default function CreatePostScreen() {
   const router = useRouter();
 
-  // --- States for Form Data ---
-  const [image_url, setImage_Url] = useState<string | null>(null);
+  // (States ทั้งหมดเหมือนเดิม - ใช้ image_url ถูกต้องแล้ว)
+  const [image_url, setImage_url] = useState<DocumentPicker.DocumentPickerAsset[] | null>(null);
   const [product_name, setProduct_Name] = useState<string | null>(null);
   const [grade, setGrade] = useState<string | null>(null);
   const [quantity_total, setQuantity_Total] = useState('');
   const [price_per_unit, setPrice_Per_Unit] = useState('');
   const [pickup_date, setPickup_Date] = useState(new Date());
   const [description, setDescription] = useState('');
-  //const [allowNegotiation, setAllowNegotiation] = useState(false);
-
-  // --- States for UI (Dropdowns, DatePicker) ---
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-
-  // --- Dropdown Items (ตัวอย่าง) ---
   const [productItems, setProductItems] = useState([
-    { label: 'ทุเรียน', value: 'durian' },
-    { label: 'มะม่วง', value: 'mango' },
-    { label: 'มังคุด', value: 'mangosteen' },
-    { label: 'องุ่น', value: 'grape' },
+    { label: 'ทุเรียน', value: 'ทุเรียน' },
+    { label: 'มะม่วง', value: 'มะม่วง' },
+    { label: 'มังคุด', value: 'มังคุด' },
+    { label: 'องุ่น', value: 'องุ่น' },
   ]);
   const [gradeItems, setGradeItems] = useState<Array<{label: string, value: string}>>([]);
-
-  // 4. (ใหม่) เพิ่ม State สำหรับ Modal
   const [isModalVisible, setModalVisible] = useState(false);
   const [modalPrice, setModalPrice] = useState('');
   const [modalProduct, setModalProduct] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
+  // (useEffect, pickImage, onDateChange - เหมือนเดิม)
   useEffect(() => {
     if (product_name) {
       const newGrades = allGradesData[product_name as keyof typeof allGradesData] || [];
       setGradeItems(newGrades);
-
-      // --- ส่วนที่เพิ่มเข้ามาสำหรับ Modal ---
       const price = priceSuggestionData[product_name as keyof typeof priceSuggestionData];
       const label = productLabels[product_name as keyof typeof productLabels];
-
       if (price && label) {
         setModalProduct(label);
         setModalPrice(price);
-        setModalVisible(true); // <-- สั่งให้ Modal แสดง!
+        setModalVisible(true); 
       }
-
     } else {
       setGradeItems([]);
     }
-
     setGrade(null); 
-
   }, [product_name]);
 
-  // --- Function: เลือกรูปภาพ ---
   const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setImage_Url(result.assets[0].uri);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*'], 
+        copyToCacheDirectory: false,
+        multiple: true,
+      });
+      if (result.canceled === false && result.assets && result.assets.length > 0) {
+        setImage_url(result.assets); //
+      } else {
+        setImage_url(null); 
+      }
+    } catch (err) {
+      console.error('Error picking document:', err);
     }
   };
-
-  // --- Function: เลือกวันที่ ---
   const onDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     const currentDate = selectedDate || pickup_date;
-    setShowDatePicker(Platform.OS === 'ios'); // บน iOS ปิดทันที
+    setShowDatePicker(Platform.OS === 'ios'); 
     setPickup_Date(currentDate);
   };
 
-  // --- Function: กดโพสต์ ---
-  const handlePost = () => {
-    // รวบรวมข้อมูลทั้งหมด
+  // 🟢 3. แก้ไข handlePost
+  const handlePost = useCallback(async () => {
+    if (isLoading) return;
+
+    // (ตรวจสอบข้อมูล - ใช้ image_url ถูกต้อง)
+    if (!product_name || !grade || !quantity_total || !price_per_unit || !image_url || !pickup_date) {
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (รูป, ชื่อ, เกรด, จำนวน, ราคา, วันที่) ให้ครบถ้วน');
+      return;
+    }
+
+    setIsLoading(true);
+
+    // 🟢 4. (แก้ไข) เปลี่ยน .now() เป็น .name
+    const simulated_image_url = image_url.map(file => {
+        return `https://example.com/uploads/${file.name}`;
+});
+    // (postData และ ยิง API - เหมือนเดิม)
     const postData = {
-      image_url,
-      product_name,
-      grade,
-      quantity_total,
-      price_per_unit,
-      pickupDate: pickup_date.toISOString(),
-      description,
-      //allowNegotiation,
+      product_name: product_name,
+      grade: grade,
+      quantity_total: parseFloat(quantity_total),
+      price_per_unit: parseFloat(price_per_unit),
+      pickup_date: pickup_date.toISOString(),
+      description: description,
+      image_urls: simulated_image_url, 
+      unit: 'กก.',
     };
-    console.log('Post Data:', postData);
-    Alert.alert('โพสต์สำเร็จ!', 'ข้อมูลประกาศของคุณถูกบันทึกแล้ว');
-    router.back(); // กลับไปหน้าก่อนหน้า
-  };
+    try {
+      await api.post('/api/listings', postData); 
+      setIsLoading(false);
+      Alert.alert('โพสต์สำเร็จ!', 'ข้อมูลประกาศของคุณถูกบันทึกแล้ว');
+      router.back(); 
+    } catch (err: any) {
+      setIsLoading(false);
+      console.error('Post failed:', err.response?.data || err.message);
+      Alert.alert(
+        'โพสต์ไม่สำเร็จ',
+        err.response?.data?.message || 'เกิดข้อผิดพลาด'
+      );
+    }
+  }, [
+    // (Dependencies - ใช้ image_url ถูกต้อง)
+    isLoading, image_url, product_name, grade, 
+    quantity_total, price_per_unit, pickup_date, 
+    description, router, gradeItems 
+  ]);
 
-/*   const handleOpenProductDropdown = React.useCallback(
-  (isOpen: boolean) => {
-    setOpenDropdown(isOpen ? 'product' : null);
-  },
-  []
-);
-
-  const handleOpenGradeDropdown = React.useCallback(
-  (isOpen: boolean) => {
-    setOpenDropdown(isOpen ? 'grade' : null);
-  },
-  []
-); */
 
   return (
     <>
-      {/* 1. ส่วน Header (จัดการโดย Expo Router) */}
-      <Stack.Screen
+    <Stack.Screen
         options={{
           title: 'ฟีเจอร์ประกาศขาย',
           headerBackTitle: 'กลับ',
           headerRight: () => (
             <Button
-              title="โพสต์"
-              onPress={handlePost}
+              title={isLoading ? 'กำลังโพสต์...' : 'โพสต์'} 
+              onPress={handlePost} 
               variant="default"
               style={{ 
                 marginVertical: 0,
@@ -180,23 +188,43 @@ export default function CreatePostScreen() {
                 paddingVertical: 8,
                 paddingHorizontal: 16,
               }}
-              />
+              disabled={isLoading} 
+            />
           ),
         }}
       />
       
-      {/* 2. ส่วน Form */}
+      {/* 🟢 5. (สำคัญ) เพิ่ม ScrollView ห่อฟอร์ม */}
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        {/* --- เลือกรูปภาพ --- */}
-        <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-          {image_url ? (
-            <Image source={{ uri: image_url }} style={styles.image} />
-          ) : (
-            <Text style={styles.imagePickerText}>+ เพิ่มรูปภาพสินค้า</Text>
-          )}
-        </TouchableOpacity>
+        
+        {/* 🟢 6. (แก้ไข) UI ปุ่มเลือกรูป (เปลี่ยน selectedFile -> image_url) */}
+        <View style={styles.uploadContainer}>
+          <Text style={styles.label}>รูปภาพสินค้า</Text>
+          <TouchableOpacity 
+            style={styles.uploadBox} 
+            onPress={pickImage}
+          >
+            {image_url && image_url.length > 0 ? ( // 👈 แก้ไข
+              <>
+                <Text style={styles.fileNameText} numberOfLines={2}>
+                  เลือกแล้ว: {image_url.length} รูป {/* 👈 แก้ไข */}
+                </Text>
+                <Text style={styles.uploadText}>
+                  (คลิกเพื่อเปลี่ยนไฟล์)
+                </Text>
+              </>
+            ) : (
+              <>
+                <MaterialIcons name="cloud-upload" size={36} color="#A0AEC0" />
+                <Text style={styles.uploadText}>
+                  คลิกเพื่ออัปโหลดรูปภาพ
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
-        {/* --- ชื่อสินค้า (Dropdown) --- */}
+        {/* (Dropdowns และ Inputs ที่เหลือเหมือนเดิม) */}
         <Text style={styles.label}>ชื่อสินค้า</Text>
         <CustomDropdown
           open={openDropdown === 'product'}
@@ -209,7 +237,6 @@ export default function CreatePostScreen() {
           containerStyle={{ zIndex: 1000, marginVertical: 8 }} 
         />
 
-        {/* --- เกรดสินค้า (Dropdown) --- */}
         <Text style={styles.label}>เกรดสินค้า</Text>
         <CustomDropdown
           open={openDropdown === 'grade'}
@@ -220,12 +247,10 @@ export default function CreatePostScreen() {
           setItems={setGradeItems}
           placeholder="เลือกเกรดสินค้า"
           containerStyle={{ zIndex: 900, marginVertical: 8 }}
-         // ⬇️ 8. (สำคัญ) ปิดการใช้งาน Dropdown นี้ ถ้ายังไม่เลือกสินค้า
           disabled={!product_name} 
           disabledStyle={{ backgroundColor: '#F0F0F0' }}
         />
 
-        {/* --- จำนวน --- */}
         <RoundedInput
           label="จำนวน (กิโลกรัม)"
           placeholder="ระบุจำนวน"
@@ -234,7 +259,6 @@ export default function CreatePostScreen() {
           keyboardType="numeric"
         />
 
-        {/* --- ราคา/กิโลกรัม --- */}
         <RoundedInput
         label="ราคา/กิโลกรัม (บาท)"
           placeholder="ระบุราคา"
@@ -243,7 +267,6 @@ export default function CreatePostScreen() {
           keyboardType="numeric"
         />
 
-        {/* --- วันที่สะดวก --- */}
         <Text style={styles.label}>วันที่สะดวกให้ผู้ซื้อมารับ</Text>
         <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.datePickerButton}>
           <Text style={styles.datePickerText}>
@@ -262,7 +285,6 @@ export default function CreatePostScreen() {
           />
         )}
 
-        {/* --- รายละเอียดเพิ่มเติม --- */}
         <RoundedInput
           label="รายละเอียดเพิ่มเติม"
           placeholder="เช่น สถานที่รับ, เวลา..."
@@ -273,24 +295,13 @@ export default function CreatePostScreen() {
           style={{ height: 100, textAlignVertical: 'top', paddingTop: 16 }}
         />
 
-        {/* --- Checkbox ต่อรองราคา --- */}
-        {/* <View style={styles.checkboxContainer}>
-          <Checkbox
-            style={styles.checkbox}
-            value={allowNegotiation}
-            onValueChange={setAllowNegotiation}
-            color={allowNegotiation ? '#28A745' : undefined}
-          />
-          <Text style={styles.checkboxLabel}>เปิดต่อรองราคา</Text>
-        </View> */}
-
       </ScrollView>
-      {/* 6. (ใหม่) เพิ่ม Modal เข้ามาที่นี่ */}
+      
+      {/* (Modal เหมือนเดิม) */}
       <CustomModal 
         isVisible={isModalVisible} 
         onClose={() => setModalVisible(false)}
       >
-        {/* นี่คือเนื้อหาที่จะแสดงใน Modal (Children) */}
         <View style={styles.modalContentContainer}>
           <Text style={styles.modalTitle}>คำแนะนำ</Text>
           <Text style={styles.modalText}>
@@ -312,42 +323,49 @@ export default function CreatePostScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F4F4', // พื้นหลังสีเทาอ่อนแบบในรูป
+    backgroundColor: '#F4F4F4', 
   },
   contentContainer: {
     padding: 20,
-    backgroundColor: 'white', // พื้นที่ฟอร์มสีขาว
+    backgroundColor: 'white', 
     margin: 16,
     borderRadius: 12,
   },
-  // Image Picker
-  imagePicker: {
-    height: 200,
-    width: '100%',
-    backgroundColor: '#E6F0FF',
-    borderRadius: 8,
+  
+  // 🟢 7. (Styles รูปภาพใหม่)
+  uploadContainer: {
+    marginBottom: 20, 
+  },
+  uploadBox: {
+    height: 120,
+    borderWidth: 1,
+    borderColor: '#A0AEC0',
+    borderStyle: 'dashed',
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    overflow: 'hidden', // กันรูปทะลุขอบ
   },
-  image: {
-    width: '100%',
-    height: '100%',
+  uploadText: {
+    fontSize: 14,
+    color: '#A0AEC0',
+    marginTop: 5, 
   },
-  imagePickerText: {
-    color: '#0052CC',
-    fontSize: 16,
+  fileNameText: {
+      fontSize: 14,
+      color: '#2D3748',
+      fontWeight: 'bold',
+      textAlign: 'center',
+      paddingHorizontal: 10,
   },
-  // Form Labels
+
+  // (Styles ที่เหลือเหมือนเดิม)
   label: {
     fontSize: 16,
     fontWeight: '500',
     color: '#333',
-    marginTop: 10, // ระยะห่างบน
-    marginBottom: 4, // ระยะห่างล่าง (ก่อน input)
+    marginTop: 10, 
+    marginBottom: 4, 
   },
-  // Date Picker
   datePickerButton: {
     backgroundColor: '#E6F0FF',
     borderRadius: 8,
@@ -360,7 +378,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#0052CC',
   },
-  // Checkbox
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -381,7 +398,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#0056b3', // (สีน้ำเงินตาม UI)
+    color: '#0056b3', 
     marginBottom: 15,
   },
   modalText: {
@@ -392,8 +409,8 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   modalButton: {
-    backgroundColor: '#28a745', // (สีเขียวตาม UI)
-    borderRadius: 25, // (ทำให้ขอบมน)
+    backgroundColor: '#28a745', 
+    borderRadius: 25, 
     paddingVertical: 12,
     paddingHorizontal: 50,
   },
