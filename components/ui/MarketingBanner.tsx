@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     // ใช้สไตล์ของ variant='banner' ที่กำหนดใน Button.tsx
   },
   bannerButtonText: {
-    fontSize: 14, 
+    fontSize: 12, 
     fontWeight: 'bold',
     margin: -10,
   },
