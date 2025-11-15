@@ -111,7 +111,6 @@ const styles = StyleSheet.create({
     borderRadius: 27.5, // ทำให้เป็นวงกลม
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20, // ดันปุ่มให้ลอยขึ้นมาเล็กน้อยตาม UI
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
