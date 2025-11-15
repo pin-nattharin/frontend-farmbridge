@@ -84,7 +84,7 @@ const LoginScreen: React.FC = () => {
           {/* 1. เชื่อมต่อ State เข้ากับ Input */}
           <RoundedInput 
             label="อีเมล" 
-            placeholder="example@email.com" 
+            placeholder="example@gmail.com" 
             keyboardType="email-address" 
             value={email} 
             onChangeText={setEmail}

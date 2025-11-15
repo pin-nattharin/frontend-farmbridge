@@ -10,12 +10,13 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-//import { Ionicons } from '@expo-vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import RoundedInput from '../components/ui/RoundedInput';
 import Button from '../components/ui/Button';
-import { registerBaseStyles } from './farmer/RegisterSellerScreen'; 
+import { registerBaseStyles } from './farmer/RegisterSellerScreen';
+import api from '../services/api'; 
 
 const EditProfileScreen = () => {
 
@@ -60,37 +61,32 @@ const EditProfileScreen = () => {
         setIsLoading(true);
         console.log("Saving Data:", { userId, fullname, phone });
 
-        // (จำลอง API Call)
-        setTimeout(async () => { // 🟢 3. ทำให้ setTimeout เป็น async
+        try {
+            // ยิง API (ตรงกับ auth.routes.js)
+            const response = await api.put('/api/auth/profile', {
+                fullname: fullname,
+                phone: phone
+                // (Back-end ของคุณยังรองรับ 'address' ด้วย ถ้ามีช่อง Input ก็เพิ่มได้เลย)
+            });
+
+            const updatedUser = response.data.user;
+            await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+
             setIsLoading(false);
-
-            // 🟢 4. อัปเดตข้อมูลใน AsyncStorage
-            try {
-                const userString = await AsyncStorage.getItem('user');
-                // ดึงข้อมูลเก่า (ที่มี id, email, role)
-                const oldUser = userString ? JSON.parse(userString) : {}; 
-                
-                // สร้าง object ใหม่ทับข้อมูลเดิม
-                const updatedUser = {
-                    ...oldUser,
-                    fullname: fullname,
-                    phone: phone
-                };
-
-                // บันทึกทับของเดิม
-                await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
-
-            } catch (e) {
-                console.error("Failed to update user in AsyncStorage", e);
-            }
-            
-            // 🟢 5. แจ้งเตือนหลังบันทึก AsyncStorage สำเร็จ
             Alert.alert(
                 "บันทึกสำเร็จ", 
                 "ข้อมูลโปรไฟล์ของคุณถูกอัปเดตแล้ว",
-                [{ text: "ตกลง", onPress: () => router.back() }] //
+                [{ text: "ตกลง", onPress: () => router.back() }]
             );
-        }, 1000); //
+            } catch (err: any) {
+            // 🟢 7. จัดการ Error
+            setIsLoading(false);
+            console.error("Update failed:", err.response?.data || err.message);
+            Alert.alert(
+                "บันทึกไม่สำเร็จ", 
+                err.response?.data?.message || "เกิดข้อผิดพลาด"
+            );
+        }
     };
 
     // (JSX ทั้งหมดเหมือนเดิม)
@@ -103,6 +99,11 @@ const EditProfileScreen = () => {
                 end={{ x: 1, y: 1 }}
             />
             <SafeAreaView style={styles.safeAreaContent}>
+
+                {/* 🟢 8. เพิ่มปุ่ม Back ที่หายไป */}
+                <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color="white" />
+                </TouchableOpacity>
 
                 <View style={styles.headerContainer}>
                     <Text style={styles.header}>แก้ไขโปรไฟล์</Text>
