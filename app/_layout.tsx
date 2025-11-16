@@ -32,7 +32,7 @@ export default function RootLayout() {
     return (
         <Stack>
             {/* โครงสร้าง Router หลักของแอปฯ */}
-            <Stack.Screen name="buyer/homeBuyer" options={{ headerShown: false }} />
+            <Stack.Screen name="home" options={{ headerShown: false }} />
             {/* ... โครงสร้าง Stack อื่นๆ ของคุณ ... */}
         </Stack>
     );
