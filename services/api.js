@@ -1,33 +1,26 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+//import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // !!! เปลี่ยน IP และ Port ให้ตรงกับเครื่องคุณ !!!
 //const API_BASE_URL = 'http://192.168.0.102:3000'; // <-- ตัวอย่างสำหรับมือถือจริง
-const API_BASE_URL = 'http://10.0.2.2:3000'; // <-- ตัวอย่างสำหรับ android Emulator
+const API_BASE_URL = 'http://10.0.2.2:3000/api'; // <-- ตัวอย่างสำหรับ android Emulator
 //const API_BASE_URL = 'http://localhost:3000'; // <-- ตัวอย่างสำหรับ Emulator
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// (นี่คือ "ตัวดักจับ" ที่จะเพิ่ม Token ไปใน Header ให้ทุกครั้ง)
-api.interceptors.request.use(
-  async (config) => {
-    // ดึง token มาจาก AsyncStorage
-    const token = await AsyncStorage.getItem('token');
+export const setAuthToken = (token) => {
     if (token) {
-      // ถ้ามี token, ให้ยัดเข้าไปใน Header
-      config.headers.Authorization = `Bearer ${token}`;
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+        delete api.defaults.headers.common['Authorization'];
     }
-    return config; // ส่ง Request นี้ต่อไป
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+};
 
 export default api;
 
