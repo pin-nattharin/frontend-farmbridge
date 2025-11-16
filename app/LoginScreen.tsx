@@ -53,8 +53,10 @@ const LoginScreen: React.FC = () => {
 
     } catch (err) {
       // 9. Login ไม่สำเร็จ
-      console.error(err.response ? err.response.data : err);
-      const message = err.response?.data?.message || 'เกิดข้อผิดพลาด';
+      const error = err as any; 
+
+    console.error(error.response ? error.response.data : error);
+    const message = error.response?.data?.message || 'เกิดข้อผิดพลาด';
       Alert.alert('เข้าสู่ระบบไม่สำเร็จ', message);
     } finally {
       setLoading(false);

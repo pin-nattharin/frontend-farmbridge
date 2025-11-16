@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, FlatList } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, FlatList, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
@@ -9,19 +9,34 @@ import CustomDropdown from '../components/ui/Dropdown';
 import ProductCard from '../components/ui/ProductCard'; 
 import BottomNavbar from '../components/ui/BottomNavbar'; // *** 1. Import Navbar ***
 
-// ----------------------------------------------------
-// ข้อมูลจำลอง (DUMMY DATA) - แก้ไข Type ของ value เป็น string
-// ----------------------------------------------------
+import api from '../services/api'; 
+import { useAuth } from './context/AuthContext'; 
+
+interface Listing {
+    id: string;
+    product_name: string;
+    price_per_unit: number;
+    unit: string;
+    grade: string | null;
+    image_url: string[] | null;
+    seller: {
+        fullname: string;
+        address: string;
+    };
+    distance_km: number | null;
+}
 
 // 1. ข้อมูลสำหรับ Dropdown
 const typeItems = [
-    { label: 'ทุเรียน', value: 'durian' },
-    { label: 'มะม่วง', value: 'mango' },
-    { label: 'องุ่น', value: 'grape' },
-    { label: 'มังคุด', value: 'mangosteen' },
+    { label: 'ทุกประเภท', value: 'ทั้งหมด' },
+    { label: 'ทุเรียน', value: 'ทุเรียน' },
+    { label: 'มะม่วง', value: 'มะม่วง' },
+    { label: 'องุ่น', value: 'องุ่น' },
+    { label: 'มังคุด', value: 'มังคุด' },
 ];
 
 const areaItems = [
+    { label: 'ทุกพื้นที่', value: 'ทุกพื้นที่' },
     { label: '5 กม.', value: '5' },     
     { label: '20 กม.', value: '20' },    
     { label: '30 กม.', value: '30' },
@@ -29,19 +44,11 @@ const areaItems = [
 ];
 
 const priceItems = [
-    { label: 'ต่ำ-สูง', value: 'low-high' },
-    { label: 'สูง-ต่ำ', value: 'high-low' },
+    { label: 'ราคา', value: 'ราคาทั้งหมด' },
+    { label: 'ต่ำ-สูง', value: 'ต่ำ-สูง' },
+    { label: 'สูง-ต่ำ', value: 'สูง-ต่ำ' },
 ];
 
-// 2. ข้อมูลรายการสินค้า (ตามภาพ UI)
-const dummyProducts = [
-    { id: '1', productName: 'มะม่วงน้ำดอกไม้', price: 30, unit: 'กก.', grade: 'เกรด C', distance: '2.5 กม.', imageUrl: 'https://picsum.photos/id/66/300/200' },
-    { id: '2', productName: 'ทุเรียนหมอนทอง', price: 95, unit: 'กก.', grade: 'เกรด C', distance: '10 กม.', imageUrl: 'https://picsum.photos/id/1080/300/200' },
-    { id: '3', productName: 'องุ่นเขียวไร้เมล็ด', price: 90, unit: 'กก.', grade: 'เกรด C', distance: '23.2 กม.', imageUrl: 'https://picsum.photos/id/166/300/200' },
-    { id: '4', productName: 'มะม่วงเขียวเสวย', price: 85, unit: 'กก.', grade: 'เกรด C', distance: '21.3 กม.', imageUrl: 'https://picsum.photos/id/1025/300/200' },
-    { id: '5', productName: 'มังคุดเกรดพรีเมียม', price: 120, unit: 'กก.', grade: 'เกรด A', distance: '1.1 กม.', imageUrl: 'https://picsum.photos/id/237/300/200' },
-    { id: '6', productName: 'เงาะโรงเรียน', price: 75, unit: 'กก.', grade: 'เกรด B', distance: '5.0 กม.', imageUrl: 'https://picsum.photos/id/145/300/200' },
-];
 
 // ----------------------------------------------------
 // HOMESCREEN COMPONENT
@@ -50,9 +57,12 @@ const dummyProducts = [
 const HomeScreen: React.FC = () => {
 
     const router = useRouter();
+    const { token, user } = useAuth();
 
     // *** State สำหรับ Navbar ***
     const [activeTab, setActiveTab] = useState<'home' | 'add' | 'profile'>('home');
+    const [listings, setListings] = useState<Listing[]>([]); 
+    const [isFetching, setIsFetching] = useState(true);
 
     // State สำหรับจัดการ Dropdown (ใช้ string)
     const [typeOpen, setTypeOpen] = useState(false);
@@ -69,6 +79,41 @@ const HomeScreen: React.FC = () => {
 
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
+    // 🚨 [NEW FUNCTION] ดึงรายการสินค้าทั้งหมด (Public Route: /listings)
+    const fetchListings = useCallback(async () => {
+        setIsFetching(true);
+        try {
+            const params: { product_name?: string, status?: string, distance?: string } = {
+                status: 'available'
+            };
+            
+            if (typeValue && typeValue !== 'all') {
+                params.product_name = typeValue;
+            }
+            // 🚨 เพิ่มการส่ง distance (ถ้ามีการล็อกอินและเลือก Filter)
+            if (areaValue && areaValue !== 'all' && token) {
+                params.distance = areaValue;
+            }
+
+            // 🚨 [API CALL] เรียก /listings/all
+            const response = await api.get('/listings/all', { params }); 
+
+            const data: Listing[] = response.data;
+            setListings(data);
+            
+        } catch (error: any) {
+            console.error("Failed to fetch public listings:", error);
+            // Error 404 จะหายไป แต่ถ้ามี Error อื่นจะแสดงที่นี่
+            Alert.alert('ผิดพลาด', error.response?.data?.message || 'ไม่สามารถดึงรายการสินค้าได้');
+        } finally {
+            setIsFetching(false);
+        }
+    }, [typeValue]); // 🚨 เพิ่ม areaValue และ token
+
+    useEffect(() => {
+        fetchListings();
+    }, [fetchListings]);
+
     // ฟังก์ชันทดสอบการค้นหา
     const handleSearch = (query: string) => {
         Alert.alert("ค้นหาสำเร็จ", `คุณค้นหา: "${query}"`);
@@ -81,8 +126,11 @@ const HomeScreen: React.FC = () => {
     };
 
     // ฟังก์ชันทดสอบการกด Product Card
-    const handleProductPress = (productName: string) => {
-        Alert.alert("รายละเอียดสินค้า", `เปิดหน้า: ${productName}`);
+    const handleProductPress = (listingId: string) => {
+        router.push({
+            pathname: './ProductDetail',
+            params: { id: listingId }
+        });
     };
 
     // ฟังก์ชันสำหรับควบคุมการเปิด-ปิด Dropdown เพื่อให้เปิดได้ทีละตัว
@@ -112,6 +160,8 @@ const HomeScreen: React.FC = () => {
              router.push('/LoginScreen');;
         }
     };
+
+    const IMAGE_BASE_URL = 'http://10.0.2.2:3000';
 
 
     return (
@@ -191,24 +241,36 @@ const HomeScreen: React.FC = () => {
                     {/* --- 4. Product List Header --- */}
                     <Text style={styles.listHeader}>รายการแนะนำ</Text>
 
+
                     {/* --- 5. Product List Grid --- */}
                     <FlatList
-                        data={dummyProducts}
+                        data={listings}
                         keyExtractor={item => item.id}
-                        renderItem={({ item }) => (
-                            <ProductCard
-                                productName={item.productName}
-                                price={item.price}
+                        renderItem={({ item }) => {
+                            const imagePath = item.image_url ? item.image_url[0] : null;
+                                const fullImageUrl = imagePath ? `${IMAGE_BASE_URL}${imagePath}`
+                                : 'https://via.placeholder.com/300';
+
+                                return ( 
+                                <ProductCard
+                                productName={item.product_name}
+                                price={item.price_per_unit ?? 0}
                                 unit={item.unit}
                                 grade={item.grade}
-                                distance={item.distance}
-                                imageUrl={item.imageUrl}
-                                onPress={() => handleProductPress(item.productName)}
+                                distance={typeof item.distance_km === 'number' 
+                                        ? `${item.distance_km.toFixed(1)} กม.` 
+                                        : 'ไม่ระบุ'}
+                                imageUrl={fullImageUrl}
+                                onPress={() => handleProductPress(item.id)}
                             />
-                        )}
+                                );
+                            }}
                         numColumns={2} 
                         contentContainerStyle={styles.productList}
                         scrollEnabled={false} 
+                        ListEmptyComponent={() => (
+                                <Text style={styles.noDataText}>ไม่พบรายการสินค้าที่พร้อมจำหน่าย</Text>
+                            )}
                     />
 
                 </ScrollView>
@@ -289,6 +351,12 @@ const styles = StyleSheet.create({
     productList: {
         paddingHorizontal: 30, 
         justifyContent: 'space-between',
+    },
+    noDataText: {
+        textAlign: 'center',
+        color: '#A0AEC0',
+        paddingVertical: 40,
+        fontSize: 16,
     },
 });
 

@@ -84,10 +84,10 @@ const BuyerProfileScreen = () => {
                             await AsyncStorage.removeItem('token');
                             await AsyncStorage.removeItem('user');
                             console.log("User logged out, token cleared.");
-                            router.replace('../LoginScreen');
+                            router.replace('../home');
                         } catch (e) {
                              console.error("Failed to clear async storage", e);
-                             router.replace('../LoginScreen');
+                             router.replace('../home');
                         }
                     },
                     style: "destructive"

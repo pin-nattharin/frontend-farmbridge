@@ -8,131 +8,113 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  ActivityIndicator, // --- [NEW] ---
+  ActivityIndicator,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 
 // (สมมติว่าคุณมีไฟล์ Dropdown ที่ path นี้)
 import CustomDropdown from '../../components/ui/Dropdown'; 
 
-// --- [NEW] --- (สมมติว่าคุณมีไฟล์ config และ context)
-// (***กรุณาแก้ Path ให้ถูกต้องตามโปรเจกต์ของคุณ***)
-// (ถ้าคุณยังไม่มี AuthContext ให้ดูที่ผมส่งให้ก่อนหน้านี้)
+// --- [แก้ไข] นำเข้า Axios Instance และ useAuth ---
 import api from '../../services/api';
-import { useAuth } from '../context/AuthContext'; // (แก้ path นี้ให้ถูก)
+import { useAuth } from '../context/AuthContext'; 
 
 const CreateDemandScreen = () => {
   const router = useRouter();
-  const { token } = useAuth(); // --- [NEW] --- (ดึง Token)
+  // ดึง Token และสถานะโหลด Auth (จำเป็นต้องถูกห่อหุ้มด้วย AuthProvider)
+  const { token, isLoading: authLoading } = useAuth(); 
 
   // --- 1. States for Form Data ---
   const [productName, setProductName] = useState<string | null>(null);
   const [quantity, setQuantity] = useState('');
-  const [price, setPrice] = useState(''); // --- [NEW] --- (สำหรับ desired_price)
+  const [price, setPrice] = useState(''); 
 
   // --- 2. States for UI (Dropdown) ---
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<Array<{ label: string; value: string }>>([]); // --- [NEW] --- (เริ่มจากค่าว่าง)
-  const [productsLoading, setProductsLoading] = useState(false); // --- [NEW] --- (สถานะโหลด Dropdown)
+  const [items, setItems] = useState<Array<{ label: string; value: string }>>([]);
+  const [productsLoading, setProductsLoading] = useState(false); 
   
-  // --- [NEW] --- (สถานะโหลดตอนกด "ยืนยัน")
+  // --- สถานะโหลดตอนกด "ยืนยัน" ---
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- [NEW] --- ดึงข้อมูลสินค้าสำหรับ Dropdown
+  // --- ดึงข้อมูลสินค้าสำหรับ Dropdown ---
   useEffect(() => {
     const fetchProductOptions = async () => {
-      if (!token) return;
+      // ⚠️ รอให้ Token พร้อม และ AuthContext ไม่ได้อยู่ในสถานะโหลด
+      if (!token || authLoading) return;
+
       setProductsLoading(true);
       try {
-        // (อิงจาก demand.routes.js -> router.get('/products', ...) )
-        const response = await fetch(`/api/demands/products`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+        // [แก้ไข] ใช้ api.get() แทน fetch()
+        const response = await api.get(`/demands/products`); // Axios จะจัดการ Token Header ให้เอง
 
-        if (!response.ok) {
-          throw new Error('ไม่สามารถดึงข้อมูลสินค้าได้');
-        }
+        const productList: string[] = response.data; // Axios แปลง JSON ให้แล้ว
 
-        const productList: string[] = await response.json();
-        
-        // (อิงจาก demand.controller.js -> getProductOptions)
-        // แปลง array [ 'ทุเรียน', 'มะม่วง' ] 
-        // ให้เป็น [ { label: 'ทุเรียน', value: 'ทุเรียน' }, { label: 'มะม่วง', value: 'มะม่วง' } ]
+        // แปลงข้อมูล dropdownItems
         const dropdownItems = productList.map(product => ({
           label: product,
           value: product,
         }));
         setItems(dropdownItems);
 
-      } catch (error) {
-        console.error(error);
-        Alert.alert('ผิดพลาด', 'ไม่สามารถดึงข้อมูลสินค้าได้');
+      } catch (error: any) {
+        console.error('Fetch Product Options Failed:', error);
+        // แสดงข้อความ Error จาก Axios
+        Alert.alert('ผิดพลาด', error.response?.data?.message || 'ไม่สามารถดึงข้อมูลสินค้าได้');
       } finally {
         setProductsLoading(false);
       }
     };
 
     fetchProductOptions();
-  }, [token]); // ทำงานเมื่อ Token พร้อมใช้งาน
+  }, [token, authLoading]); // ทำงานเมื่อ Token และ AuthContext พร้อมใช้งาน
 
   // --- 3. ฟังก์ชันสำหรับปุ่ม ---
   const handleCancel = () => {
-    if (isSubmitting) return; // --- [NEW] ---
+    // ป้องกันการทำงานขณะ Submit
+    if (isSubmitting) return; 
     router.back();
   };
 
   const handleConfirm = async () => {
     // --- 4. ตรวจสอบข้อมูล ---
-    // (desired_price เป็น optional ใน controller จึงไม่ต้องบังคับ)
     if (!productName || !quantity) {
       Alert.alert('ข้อมูลไม่ครบ', 'กรุณาเลือกสินค้าและระบุจำนวน');
       return;
     }
 
-    if (isSubmitting) return; // --- [NEW] --- (ป้องกันการกดย้ำ)
-    setIsSubmitting(true); // --- [NEW] ---
+    if (isSubmitting || !token) return; // ป้องกันการกดย้ำ & ต้องมี Token
+    setIsSubmitting(true); 
 
-    // --- 5. (ของจริง) การยิง API ---
     console.log('Sending Demand:', {
       product_name: productName,
       desired_quantity: quantity,
       desired_price: price,
-      unit: 'kg', // (ตามที่ UI ระบุ)
+      unit: 'kg',
     });
 
     try {
-      // (อิงจาก demand.routes.js -> router.post('/', ...) )
-      // (อิงจาก demand.controller.js -> createDemand)
-      const response = await fetch(`/api/demands`, { 
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // (ต้องใช้ Token เพื่อให้ controller รู้ 'buyer_id' จาก req.identity.id)
-        },
-        body: JSON.stringify({
-          product_name: productName,
-          desired_quantity: parseFloat(quantity),
-          desired_price: price ? parseFloat(price) : null, // --- [NEW] --- (ส่งค่า price)
-          unit: 'kg', 
-          // (location_geom จะถูกดึงจาก profile ของ buyer_id ใน backend)
-        }),
+      // [แก้ไข] ใช้ api.post() แทน fetch()
+      const response = await api.post(`/demands`, { 
+        product_name: productName,
+        desired_quantity: parseFloat(quantity),
+        desired_price: price ? parseFloat(price) : null,
+        unit: 'kg', 
       });
 
-      if (response.ok) {
-        Alert.alert('ส่งสำเร็จ', 'คำขอของคุณถูกบันทึกแล้ว');
-        router.back();
-      } else {
-        const errData = await response.json();
-        Alert.alert('ผิดพลาด', errData.message || 'ไม่สามารถส่งคำขอได้');
-      }
+      // ถ้า Axios ไม่โยน Error แสดงว่า response.status อยู่ใน 2xx
+      Alert.alert('ส่งสำเร็จ', 'คำขอของคุณถูกบันทึกแล้ว');
+      router.back();
 
-    } catch (error) {
-      console.error(error);
-      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+    } catch (error: any) { 
+      console.error('Create Demand Failed:', error);
+      // [แก้ไข] ใช้โครงสร้างการรับ Error จาก Axios
+      Alert.alert(
+        'เกิดข้อผิดพลาด', 
+        error.response?.data?.message || error.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ (โปรดเช็ค IP ใน services/api.js)'
+      );
     } finally {
-      setIsSubmitting(false); // --- [NEW] ---
+      setIsSubmitting(false);
     }
   };
 
@@ -153,9 +135,9 @@ const CreateDemandScreen = () => {
             setItems={setItems}
             placeholder="เลือกสินค้าที่ต้องการ"
             containerStyle={{ zIndex: 1000, marginVertical: 8 }}
-            loading={productsLoading} // --- [NEW] ---
-            disabled={isSubmitting} // --- [NEW] ---
-            listMode="MODAL" // (แนะนำสำหรับ ScrollView)
+            loading={productsLoading}
+            disabled={isSubmitting}
+            listMode="MODAL"
           />
 
           {/* --- 2. จำนวน (TextInput) --- */}
@@ -166,10 +148,10 @@ const CreateDemandScreen = () => {
             value={quantity}
             onChangeText={setQuantity}
             keyboardType="numeric"
-            editable={!isSubmitting} // --- [NEW] ---
+            editable={!isSubmitting}
           />
           
-          {/* --- 3. ราคา (TextInput) --- [NEW] --- */}
+          {/* --- 3. ราคา (TextInput) --- */}
           <Text style={styles.label}>ราคาที่ต้องการ (บาท / กก.)</Text>
           <TextInput
             style={styles.inputBox}
@@ -185,18 +167,18 @@ const CreateDemandScreen = () => {
             <TouchableOpacity 
               style={[styles.button, styles.buttonOutline]} 
               onPress={handleCancel}
-              disabled={isSubmitting} // --- [NEW] ---
+              disabled={isSubmitting}
             >
               <Text style={styles.buttonOutlineText}>ยกเลิก</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.button, styles.buttonSolid, isSubmitting && styles.buttonDisabled]} // --- [NEW] ---
+              style={[styles.button, styles.buttonSolid, isSubmitting && styles.buttonDisabled]}
               onPress={handleConfirm}
-              disabled={isSubmitting} // --- [NEW] ---
+              disabled={isSubmitting}
             >
               {isSubmitting ? (
-                <ActivityIndicator color="#ffffff" /> // --- [NEW] ---
+                <ActivityIndicator color="#ffffff" />
               ) : (
                 <Text style={styles.buttonSolidText}>ยืนยัน</Text>
               )}
@@ -208,22 +190,21 @@ const CreateDemandScreen = () => {
   );
 };
 
-// --- Stylesheet ---
+// --- Stylesheet (เหมือนเดิม) ---
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f4f4f4', // สีพื้นหลังเทาอ่อนแบบในรูป
+    backgroundColor: '#f4f4f4',
   },
   container: {
     flexGrow: 1,
     padding: 16,
-    paddingTop: 24, // ให้การ์ดอยู่ต่ำลงมาหน่อย
+    paddingTop: 24,
   },
   card: {
     backgroundColor: 'white',
-    borderRadius: 20, // ความโค้งมนของการ์ด
+    borderRadius: 20,
     padding: 24,
-    // Shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -251,18 +232,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 24,
-    marginHorizontal: -4, // ชดเชย padding ของปุ่ม
+    marginHorizontal: -4,
   },
   button: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginHorizontal: 4, // ระยะห่างระหว่างปุ่ม
+    marginHorizontal: 4,
   },
   buttonOutline: {
     borderWidth: 1,
-    borderColor: '#28a745', // สีเขียว
+    borderColor: '#28a745',
   },
   buttonOutlineText: {
     color: '#28a745',
@@ -270,14 +251,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   buttonSolid: {
-    backgroundColor: '#28a745', // สีเขียว
+    backgroundColor: '#28a745',
   },
   buttonSolidText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
   },
-  // --- [NEW] ---
   buttonDisabled: {
     backgroundColor: '#9e9e9e',
   },

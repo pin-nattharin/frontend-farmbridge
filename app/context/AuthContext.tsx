@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
+import api, { setAuthToken } from '../../services/api';
 
 // (สมมติว่าคุณมีไฟล์ config)
 // import { API_URL } from '../utils/apiConfig'; 
@@ -8,6 +9,7 @@ import { useRouter, useSegments } from 'expo-router';
 // 1. สร้าง Type (Interface) สำหรับข้อมูลที่จะเก็บใน Context
 interface AuthContextType {
   token: string | null;
+  user: any | null;
   isLoading: boolean;
   login: (token: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -29,6 +31,7 @@ export const useAuth = () => {
 // 4. สร้าง "กล่อง" (Provider) ที่จะหุ้มแอปทั้งแอป
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // --- ส่วนจัดการการ Redirect (ไม่บังคับ แต่แนะนำ) ---
@@ -42,6 +45,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const storedToken = await AsyncStorage.getItem('userToken'); // ดึง Token ที่เคยเก็บไว้
         if (storedToken) {
           setToken(storedToken);
+          setAuthToken(storedToken);
           
           // (ถ้าคุณมี API สำหรับดึงข้อมูล user ก็ควรยิงตรงนี้)
           // เช่น api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
@@ -58,30 +62,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // --- ส่วนจัดการการ Redirect (ต่อ) ---
   // คอยเช็คว่าถ้า Token เปลี่ยน (เช่น login/logout) หรือโหลดเสร็จแล้ว
   // จะต้องเด้งไปหน้าไหนหรือไม่
-  useEffect(() => {
+  /* useEffect(() => {
     if (isLoading) return; // ยังโหลดไม่เสร็จ ไม่ต้องทำอะไร
 
     // เช็คว่ากำลังอยู่ในกลุ่มหน้า (auth) หรือไม่ (เช่น Login, Register)
     const inAuthPage = segments[0] === 'LoginScreen'; // (ต้องสร้าง group (auth) ใน app)
-    // หรือเช็คชื่อหน้าตรงๆ
-    // const inLoginPage = segments.includes('LoginScreen'); 
+    //const inHome = segments.includes('index'); 
 
     if (!token && !inAuthPage) {
       // --- 1. ยังไม่ล็อกอิน และไม่ได้อยู่ในหน้า Login/Register ---
       // ให้เด้งไปหน้า login
-      router.replace('../LoginScreen'); // (แก้ path นี้ให้ถูก)
+      router.replace('../app/LoginScreen'); // (แก้ path นี้ให้ถูก)
     } else if (token && inAuthPage) {
       // --- 2. ล็อกอินแล้ว แต่เผลอไปหน้า Login/Register ---
       // ให้เด้งไปหน้า home
       router.replace('../buyer/homeBuyer'); // (แก้ path นี้ให้ถูก)
+    }else if (!token && inAuthPage) {
+      // --- 3. ไม่ได้ล็อกอิน แต่ดันอยู่ในหน้า Home (ป้องกันการเข้าถึงหน้า Home โดยตรง) ---
+      router.replace('../LoginScreen');
     }
-  }, [token, isLoading, segments, router]);
+  }, [token, isLoading, segments, router]); */
 
   // 6. ฟังก์ชัน Login
   const login = async (newToken: string) => {
     try {
       await AsyncStorage.setItem('userToken', newToken); // เก็บ Token ลงเครื่อง
       setToken(newToken); // อัปเดต Token ใน state
+      setAuthToken(newToken);
       
       // (ถ้าคุณใช้ axios)
       // api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
@@ -96,8 +103,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // 7. ฟังก์ชัน Logout
   const logout = async () => {
     try {
+      await api.post('/auth/logout');
+
       await AsyncStorage.removeItem('userToken'); // ลบ Token ออกจากเครื่อง
       setToken(null); // อัปเดต Token ใน state
+      setUser(null);
+      setAuthToken(null);
       
       // (ถ้าคุณใช้ axios)
       // delete api.defaults.headers.common['Authorization'];
@@ -106,12 +117,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       router.replace('/LoginScreen'); // (แก้ path นี้ให้ถูก)
     } catch (e) {
       console.error("Failed to remove token", e);
+      await AsyncStorage.removeItem('userToken');
+      setToken(null);
+      setAuthToken(null);
+      router.replace('/LoginScreen');
     }
   };
 
   // 8. ส่งค่าทั้งหมด (token, login, logout) ให้ Children (ทั้งแอป)
   const value = {
     token,
+    user,
     isLoading,
     login,
     logout,

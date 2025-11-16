@@ -109,7 +109,7 @@ const HomeScreen: React.FC = () => {
         } else if (tab === 'add') {
              router.push('/farmer/RegisterSellerScreen');
         } else if (tab === 'profile') {
-             router.push('/farmer/RegisterSellerScreen');;
+             router.push('/LoginScreen');;
         }
     };
 

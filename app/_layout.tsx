@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react'; 
 import { Stack } from 'expo-router';
+import { AuthProvider } from './context/AuthContext';
 // ⚠️ เปลี่ยนมา Import Hook ของ Expo
-import { useExpoPushToken } from '../hooks/useExpoPushToken'; 
-import { useNotificationListener } from '../hooks/useNotificationListener'; 
+//import { useExpoPushToken } from '../hooks/useExpoPushToken'; 
+//import { useNotificationListener } from '../hooks/useNotificationListener'; 
 
 // Hook จำลอง/เชื่อมต่อ: ใช้สำหรับดึง JWT Token จริงจาก Global State/Context
 const useAuth = () => {
@@ -23,17 +24,19 @@ export default function RootLayout() {
 
     // 1. เรียกใช้ Hook ดึง/บันทึก EXPO PUSH Token
     // Hook นี้จะส่ง Expo Token ไปยัง Backend
-    const expoPushToken = useExpoPushToken(jwtToken); 
+    //const expoPushToken = useExpoPushToken(jwtToken); 
 
     // 2. เรียกใช้ Hook จัดการ Listener
     // Listener นี้จะใช้ Expo Notifications SDK เพื่อรับการแจ้งเตือน
-    useNotificationListener(); 
+    //useNotificationListener(); 
 
     return (
+        <AuthProvider>
         <Stack>
             {/* โครงสร้าง Router หลักของแอปฯ */}
-            <Stack.Screen name="home" options={{ headerShown: false }} />
+            <Stack.Screen name="index" options={{ headerShown: false }} />
             {/* ... โครงสร้าง Stack อื่นๆ ของคุณ ... */}
         </Stack>
+        </AuthProvider>
     );
 }

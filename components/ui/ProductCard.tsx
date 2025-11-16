@@ -31,8 +31,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
       <View style={styles.imageContainer}>
         {/* ใช้ Image.source.uri สำหรับรูปภาพจาก URL */}
         <Image 
-          source={{ uri: imageUrl }} 
-          style={styles.productImage} 
+          style={styles.productImage}
+        source={{ uri: imageUrl }} 
         />
         {/* แถบเกรดสินค้า */}
         <View style={styles.gradeBadge}>
@@ -72,18 +72,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden', 
     margin: 8, // Margin รอบการ์ดแต่ละใบ
     width: 160, // กำหนดความกว้างคงที่
-    height: 160, // เพิ่มความสูงรวมเล็กน้อยเพื่อให้รายละเอียดไม่เบียดกันมาก
+    height: 180, // เพิ่มความสูงรวมเล็กน้อยเพื่อให้รายละเอียดไม่เบียดกันมาก
     // เงาพื้นฐาน
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    
   },
   imageContainer: {
     width: '100%',
-    height: 100, // ความสูงของรูปภาพ
+    height: 120, // ความสูงของรูปภาพ
     position: 'relative',
+    backgroundColor: '#eee', // สีพื้นหลังขณะโหลดภาพ
   },
   productImage: {
     width: '100%',
