@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,66 +8,115 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  ActivityIndicator, // --- [NEW] ---
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 
+// (สมมติว่าคุณมีไฟล์ Dropdown ที่ path นี้)
 import CustomDropdown from '../../components/ui/Dropdown'; 
 
-// (สมมติว่าคุณมีไฟล์ config)
-// import { API_URL } from '../utils/apiConfig';
-// (สมมติว่าคุณมีวิธีดึง Token)
-// import { useAuth } from '../context/AuthContext'; 
+// --- [NEW] --- (สมมติว่าคุณมีไฟล์ config และ context)
+// (***กรุณาแก้ Path ให้ถูกต้องตามโปรเจกต์ของคุณ***)
+// (ถ้าคุณยังไม่มี AuthContext ให้ดูที่ผมส่งให้ก่อนหน้านี้)
+import api from '../../services/api';
+import { useAuth } from '../context/AuthContext'; // (แก้ path นี้ให้ถูก)
 
 const CreateDemandScreen = () => {
   const router = useRouter();
-  // const { token } = useAuth(); // (ตัวอย่างการดึง Token)
+  const { token } = useAuth(); // --- [NEW] --- (ดึง Token)
 
-  // --- 1. States for Form Data (ตาม Schema) ---
+  // --- 1. States for Form Data ---
   const [productName, setProductName] = useState<string | null>(null);
   const [quantity, setQuantity] = useState('');
+  const [price, setPrice] = useState(''); // --- [NEW] --- (สำหรับ desired_price)
 
   // --- 2. States for UI (Dropdown) ---
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState([
-    { label: 'ทุเรียน', value: 'durian' },
-    { label: 'มะม่วง', value: 'mango' },
-    { label: 'มังคุด', value: 'mangosteen' },
-    { label: 'องุ่น', value: 'grape' },
-  ]);
+  const [items, setItems] = useState<Array<{ label: string; value: string }>>([]); // --- [NEW] --- (เริ่มจากค่าว่าง)
+  const [productsLoading, setProductsLoading] = useState(false); // --- [NEW] --- (สถานะโหลด Dropdown)
+  
+  // --- [NEW] --- (สถานะโหลดตอนกด "ยืนยัน")
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // --- [NEW] --- ดึงข้อมูลสินค้าสำหรับ Dropdown
+  useEffect(() => {
+    const fetchProductOptions = async () => {
+      if (!token) return;
+      setProductsLoading(true);
+      try {
+        // (อิงจาก demand.routes.js -> router.get('/products', ...) )
+        const response = await fetch(`/api/demands/products`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('ไม่สามารถดึงข้อมูลสินค้าได้');
+        }
+
+        const productList: string[] = await response.json();
+        
+        // (อิงจาก demand.controller.js -> getProductOptions)
+        // แปลง array [ 'ทุเรียน', 'มะม่วง' ] 
+        // ให้เป็น [ { label: 'ทุเรียน', value: 'ทุเรียน' }, { label: 'มะม่วง', value: 'มะม่วง' } ]
+        const dropdownItems = productList.map(product => ({
+          label: product,
+          value: product,
+        }));
+        setItems(dropdownItems);
+
+      } catch (error) {
+        console.error(error);
+        Alert.alert('ผิดพลาด', 'ไม่สามารถดึงข้อมูลสินค้าได้');
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    fetchProductOptions();
+  }, [token]); // ทำงานเมื่อ Token พร้อมใช้งาน
 
   // --- 3. ฟังก์ชันสำหรับปุ่ม ---
   const handleCancel = () => {
-    router.back(); // กลับหน้าเดิม
+    if (isSubmitting) return; // --- [NEW] ---
+    router.back();
   };
 
   const handleConfirm = async () => {
     // --- 4. ตรวจสอบข้อมูล ---
+    // (desired_price เป็น optional ใน controller จึงไม่ต้องบังคับ)
     if (!productName || !quantity) {
-      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลให้ครบทุกช่อง');
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณาเลือกสินค้าและระบุจำนวน');
       return;
     }
 
-    // --- 5. (จำลอง) การยิง API ---
+    if (isSubmitting) return; // --- [NEW] --- (ป้องกันการกดย้ำ)
+    setIsSubmitting(true); // --- [NEW] ---
+
+    // --- 5. (ของจริง) การยิง API ---
     console.log('Sending Demand:', {
       product_name: productName,
       desired_quantity: quantity,
+      desired_price: price,
       unit: 'kg', // (ตามที่ UI ระบุ)
     });
 
     try {
-      /* (โค้ดจริงสำหรับยิง API)
-      const response = await fetch(`${API_URL}/api/demands`, { // (สมมติ Path นี้)
+      // (อิงจาก demand.routes.js -> router.post('/', ...) )
+      // (อิงจาก demand.controller.js -> createDemand)
+      const response = await fetch(`/api/demands`, { 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // (ต้องใช้ Token เพื่อรู้ 'buyer_id')
+          'Authorization': `Bearer ${token}`, // (ต้องใช้ Token เพื่อให้ controller รู้ 'buyer_id' จาก req.identity.id)
         },
         body: JSON.stringify({
           product_name: productName,
           desired_quantity: parseFloat(quantity),
-          desired_price: parseFloat(price),
+          desired_price: price ? parseFloat(price) : null, // --- [NEW] --- (ส่งค่า price)
           unit: 'kg', 
-          // (Backend จะดึง location_geom จาก profile ของ buyer_id)
+          // (location_geom จะถูกดึงจาก profile ของ buyer_id ใน backend)
         }),
       });
 
@@ -78,22 +127,18 @@ const CreateDemandScreen = () => {
         const errData = await response.json();
         Alert.alert('ผิดพลาด', errData.message || 'ไม่สามารถส่งคำขอได้');
       }
-      */
-
-      // (สำหรับทดสอบ)
-      Alert.alert('ส่งสำเร็จ', 'คำขอของคุณถูกบันทึกแล้ว (จำลอง)');
-      router.back();
 
     } catch (error) {
       console.error(error);
       Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+    } finally {
+      setIsSubmitting(false); // --- [NEW] ---
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* --- Header --- */}
-      <Stack.Screen options={{ title: 'ความต้องการ' }} />
+      <Stack.Screen options={{ title: 'สร้างความต้องการ' }} />
 
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
@@ -108,6 +153,9 @@ const CreateDemandScreen = () => {
             setItems={setItems}
             placeholder="เลือกสินค้าที่ต้องการ"
             containerStyle={{ zIndex: 1000, marginVertical: 8 }}
+            loading={productsLoading} // --- [NEW] ---
+            disabled={isSubmitting} // --- [NEW] ---
+            listMode="MODAL" // (แนะนำสำหรับ ScrollView)
           />
 
           {/* --- 2. จำนวน (TextInput) --- */}
@@ -118,6 +166,18 @@ const CreateDemandScreen = () => {
             value={quantity}
             onChangeText={setQuantity}
             keyboardType="numeric"
+            editable={!isSubmitting} // --- [NEW] ---
+          />
+          
+          {/* --- 3. ราคา (TextInput) --- [NEW] --- */}
+          <Text style={styles.label}>ราคาที่ต้องการ (บาท / กก.)</Text>
+          <TextInput
+            style={styles.inputBox}
+            placeholder="ระบุราคาที่ต้องการ (ไม่บังคับ)"
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="numeric"
+            editable={!isSubmitting}
           />
 
           {/* --- 4. ปุ่ม --- */}
@@ -125,14 +185,21 @@ const CreateDemandScreen = () => {
             <TouchableOpacity 
               style={[styles.button, styles.buttonOutline]} 
               onPress={handleCancel}
+              disabled={isSubmitting} // --- [NEW] ---
             >
               <Text style={styles.buttonOutlineText}>ยกเลิก</Text>
             </TouchableOpacity>
+            
             <TouchableOpacity 
-              style={[styles.button, styles.buttonSolid]} 
+              style={[styles.button, styles.buttonSolid, isSubmitting && styles.buttonDisabled]} // --- [NEW] ---
               onPress={handleConfirm}
+              disabled={isSubmitting} // --- [NEW] ---
             >
-              <Text style={styles.buttonSolidText}>ยืนยัน</Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="#ffffff" /> // --- [NEW] ---
+              ) : (
+                <Text style={styles.buttonSolidText}>ยืนยัน</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -209,6 +276,10 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  // --- [NEW] ---
+  buttonDisabled: {
+    backgroundColor: '#9e9e9e',
   },
 });
 
