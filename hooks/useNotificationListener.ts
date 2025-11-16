@@ -1,82 +1,56 @@
-// hooks/useNotificationListener.ts
+// hooks/useNotificationListener.ts (ใช้ Expo)
 
-import { useEffect } from 'react';
-import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
-import { Alert } from 'react-native';
+import { useEffect, useRef } from 'react';
+import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
+import { Subscription } from 'expo-notifications';
+import { Alert } from 'react-native';
 
-/**
- * Hook สำหรับจัดการ Listener ของ Firebase Cloud Messaging
- */
 export const useNotificationListener = () => {
     const router = useRouter();
+    const notificationListener = useRef<Notifications.Subscription | null>(null);
+    const responseListener = useRef<Notifications.Subscription | null>(null);
 
-    interface NotificationDataPayload {
-    listing_id: string;
-    distance_km: string; 
-    market_price: string;
-    seller_price: string;
-    navigation_id: string;
-}
+    const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+        const data = response.notification.request.content.data;
+        const listingId = data?.listing_id as string;
 
-    /**
-     * ฟังก์ชันหลักในการประมวลผลข้อมูลแจ้งเตือนและนำทาง
-     */
-    const handleNotification = (remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
-        const data = remoteMessage.data as unknown as NotificationDataPayload;
-        const listingId = data?.listing_id;
-        const navigationId = data?.navigation_id; 
-
-        // ตรวจสอบเงื่อนไขการนำทางตามที่ Backend ส่งมา
-        if (listingId && navigationId === 'product_detail') {
-            console.log(`[FCM Click] Navigating to product detail: ${listingId}`);
-            
-            // นำทางไปยังหน้าสินค้า พร้อมส่งข้อมูลสำคัญที่ใช้ในการจัดเรียง/เปรียบเทียบราคา
+        if (listingId) {
+            console.log(`[Expo Click] Navigating to product detail: ${listingId}`);
+            // นำทางไปยังหน้าสินค้า พร้อมส่งข้อมูลสำคัญ
             router.push({
-                pathname: `../app/productDetail`, // ⚠️ ตรวจสอบ Path ของคุณให้ถูกต้อง
-                params: { 
+                pathname: `/productDetail`,
+                params: {
                     id: listingId,
-                    distance: data.distance_km,
-                    marketPrice: data?.market_price,
-                    sellerPrice: data?.seller_price,
+                    distance: data.distance_km as string,
+                    marketPrice: data.market_price as string,
+                    sellerPrice: data.seller_price as string,
                 },
             });
         }
     };
 
     useEffect(() => {
-        // 1. จัดการเมื่อแอปฯ ปิดอยู่ (Quit) หรือ Background
-        messaging().getInitialNotification()
-            .then(remoteMessage => {
-                if (remoteMessage) {
-                    handleNotification(remoteMessage);
-                }
-            });
+        // 1. Listener สำหรับการโต้ตอบ (เมื่อผู้ใช้คลิก)
+        responseListener.current = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
 
-        // 2. จัดการเมื่อแอปฯ อยู่ใน Background/Locked (เมื่อผู้ใช้คลิก)
-        const unsubscribeOpened = messaging().onNotificationOpenedApp(remoteMessage => {
-            handleNotification(remoteMessage);
+        // 2. Listener สำหรับข้อความใหม่ที่เข้ามา (Foreground)
+        notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+            // โค้ดนี้จะทำงานเมื่อแอปฯ เปิดอยู่และได้รับแจ้งเตือน
+            console.log("Notification received in foreground:", notification.request.content.title);
+            // ไม่ต้องแสดง Alert อีก เพราะ Expo จะแสดง Banner Notification ให้โดยอัตโนมัติ
         });
 
-        // 3. จัดการเมื่อแอปฯ อยู่ใน Foreground (เปิดใช้งาน)
-        const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
-            console.log('Received notification in foreground:', remoteMessage.notification);
-            
-            // แสดง Popup ถามผู้ใช้ว่าจะดูทันทีหรือไม่
-            Alert.alert(
-                remoteMessage.notification?.title || 'แจ้งเตือนใหม่',
-                remoteMessage.notification?.body || 'มีรายการจับคู่ใหม่ใกล้คุณ',
-                [
-                    { text: 'ปิด', style: 'cancel' },
-                    { text: 'ดูเลย', onPress: () => handleNotification(remoteMessage) },
-                ]
-            );
-        });
-
-        // Cleanup function: ล้าง Listener เมื่อ Component ถูกทำลาย
         return () => {
-            unsubscribeOpened();
-            unsubscribeForeground();
+            // 1. ตรวจสอบ responseListener ก่อนยกเลิก
+            if (responseListener.current) {
+                responseListener.current.remove(); // 👈 ใช้ .remove() บน Subscription Object โดยตรง
+            }
+
+            // 2. ตรวจสอบ notificationListener ก่อนยกเลิก
+            if (notificationListener.current) {
+                notificationListener.current.remove(); // 👈 ใช้ .remove() บน Subscription Object โดยตรง
+            }
         };
     }, [router]);
 };
