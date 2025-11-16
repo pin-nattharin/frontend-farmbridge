@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons'; // (สำหรับไอคอน Checkbox)
+import { Ionicons } from '@expo/vector-icons'; 
 
+const router = useRouter();
 // --- (จำลอง) ข้อมูลที่ถูกส่งมาจากหน้าก่อนหน้า (เช่น หน้า Match) ---
 // ในแอปจริง ข้อมูลนี้จะถูกดึงมาจาก API หรือส่งมาจาก useLocalSearchParams
 const mockTransactionData = {
@@ -28,6 +30,11 @@ const mockTransactionData = {
   pickup_deadline: '12/11/2568',
 };
 
+ // 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
+    const handleBack = () => {
+        router.back();
+    };
+    
 const PaymentScreen = () => {
   const router = useRouter();
   // const { match_id } = useLocalSearchParams(); // (วิธีรับ ID เพื่อไปดึง data จริง)
@@ -66,6 +73,11 @@ const PaymentScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
+                        </TouchableOpacity>
+                      
       <Stack.Screen options={{ title: 'การชำระเงิน' }} />
       <Text style={styles.pageTitle}>การชำระเงิน</Text>
       <ScrollView style={styles.container}>
@@ -143,7 +155,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     marginLeft: 110,
     paddingLeft: 40,
-  },
+  },//  Style สำหรับปุ่มย้อนกลับ
+    backButton: {
+        position: 'absolute', // ทำให้ปุ่มลอย
+        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        left: 15,
+        zIndex: 10, // ให้อยู่ด้านบนสุด
+        padding: 5,
+    },
   card: {
     backgroundColor: 'white',
     borderRadius: 12,

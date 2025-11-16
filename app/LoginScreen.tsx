@@ -10,15 +10,15 @@ import RoundedInput from '../components/ui/RoundedInput';
 import { registerBaseStyles } from './farmer/RegisterSellerScreen';
 import api from '../services/api';
 
-const LoginScreen: React.FC = () => {
+function LoginScreen() {
   const router = useRouter(); // เรียกใช้ Router
 
   // 4. เพิ่ม States สำหรับเก็บข้อมูล
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-    
-  const handleLogin = async () => { // <-- 4. เปลี่ยนเป็น async
+
+  const handleLogin = async () => {
     if (loading) return;
     if (!email || !password) {
       Alert.alert('ข้อผิดพลาด', 'กรุณากรอกอีเมลและรหัสผ่าน');
@@ -28,14 +28,14 @@ const LoginScreen: React.FC = () => {
     setLoading(true);
     try {
       // 5. ยิง API (Backend ของคุณ auto-detect role)
-      const response = await api.post('/api/auth/login', { 
-        email: email.toLowerCase(), 
-        password: password 
+      const response = await api.post('/api/auth/login', {
+        email: email.toLowerCase(),
+        password: password
       });
 
       // 6. Login สำเร็จ (ได้ token)
       const { token, user } = response.data;
-      
+
       // 7. เก็บ Token ลงในเครื่อง
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(user));
@@ -64,7 +64,7 @@ const LoginScreen: React.FC = () => {
   const handleRegisterNavigation = () => {
     // นำทางไปยังไฟล์ app/Register.tsx
     router.push('/buyer/RegisterBuyerScreen');
-  //router.push('/RegisterBuyerScreen');
+    //router.push('/RegisterBuyerScreen');
   };
 
   return (
@@ -74,52 +74,48 @@ const LoginScreen: React.FC = () => {
         colors={['#074E9F', '#22AB67']} // สีฟ้า -> เขียว
         style={loginStyles.backgroundTop}
         start={{ x: 0.1, y: 0.1 }}
-        end={{ x: 1, y: 1 }}
-      />
+        end={{ x: 1, y: 1 }} />
 
       <View style={loginStyles.content}>
         <Text style={loginStyles.header}>เข้าสู่ระบบ</Text>
         <View style={loginStyles.card}>
-          
+
           {/* 1. เชื่อมต่อ State เข้ากับ Input */}
-          <RoundedInput 
-            label="อีเมล" 
-            placeholder="example@gmail.com" 
-            keyboardType="email-address" 
-            value={email} 
+          <RoundedInput
+            label="อีเมล"
+            placeholder="example@gmail.com"
+            keyboardType="email-address"
+            value={email}
             onChangeText={setEmail}
-            autoCapitalize="none"
-          />
-          <RoundedInput 
-            label="รหัสผ่าน" 
-            placeholder="********" 
-            secureTextEntry 
+            autoCapitalize="none" />
+          <RoundedInput
+            label="รหัสผ่าน"
+            placeholder="********"
+            secureTextEntry
             value={password}
-            onChangeText={setPassword}
-          />
-          <Button 
+            onChangeText={setPassword} />
+          <Button
             title={loading ? 'กำลังโหลด...' : 'เข้าสู่ระบบ'} // <-- 1. เปลี่ยน title
-            onPress={handleLogin} 
+            onPress={handleLogin}
             variant="default"
             style={loginStyles.loginButton}
             disabled={loading} // <-- 2. เพิ่ม disabled
           />
-          
+
           <View style={loginStyles.linkContainer}>
             <Text style={loginStyles.linkText}>ยังไม่มีบัญชีผู้ใช้ ? </Text>
-            <Button 
-              title="สมัครสมาชิก" 
+            <Button
+              title="สมัครสมาชิก"
               onPress={handleRegisterNavigation} // เรียกใช้ฟังก์ชันนำทาง
-              variant="ghost" 
+              variant="ghost"
               style={loginStyles.registerLinkButton}
-              textStyle={loginStyles.registerLinkText}
-            />
+              textStyle={loginStyles.registerLinkText} />
           </View>
         </View>
       </View>
     </View>
   );
-};
+}
 
 const loginStyles = StyleSheet.create({
   ...registerBaseStyles, 

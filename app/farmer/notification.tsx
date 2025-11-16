@@ -21,6 +21,12 @@ interface SaleNotificationItem {
     buyerPhone: string;
 }
 
+const router = useRouter();
+
+const handleBack = () => {
+    router.back();
+};
+
 const saleNotificationList: SaleNotificationItem[] = [
     { 
         id: '1', 
@@ -62,11 +68,13 @@ const SaleNotificationCard: React.FC<SaleCardProps> = ({
     onPressCard,
 }) => {
     return (
+        
         <TouchableOpacity 
             style={cardStyles.card} 
             onPress={onPressCard} 
             activeOpacity={0.8}
         >
+
             {/* แถบสีน้ำเงินด้านซ้าย (Indicator) */}
             <View style={cardStyles.indicator} />
 
@@ -126,13 +134,11 @@ export default function SaleNotificationScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <Stack.Screen 
-                options={{ 
-                    // Header มาตรฐาน
-                    headerShown: true, 
-                    title: 'การแจ้งเตือน', 
-                }} 
-            />
+            
+            {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
+                    <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                                        <Ionicons name="arrow-back" size={24} color="#0056b3" />
+                                    </TouchableOpacity>
             
             <View style={styles.contentWrapper}>
                 
@@ -169,6 +175,13 @@ export default function SaleNotificationScreen() {
 // ----------------------------------------------------
 
 const styles = StyleSheet.create({
+    backButton: {
+        position: 'absolute', // ทำให้ปุ่มลอย
+        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        left: 15,
+        zIndex: 10, // ให้อยู่ด้านบนสุด
+        padding: 5,
+    },
     safeArea: {
         flex: 1,
         backgroundColor: '#f4f4f4',

@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router'; // <-- 1. Import useRouter
 import FarmerNavbar from '../../components/ui/FarmerNavbar';
 import { LineChart } from 'react-native-chart-kit';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -70,6 +71,10 @@ const DashboardScreen = () => {
     setDropdownVisible(false); // 2. ปิดเมนู
   };
 
+  const handleBack = () => {
+        router.back();
+    };
+
   // --- 2. เพิ่มฟังก์ชันสำหรับ Navbar ---
   const handleNavHome = () => {
     // ไม่ต้องทำอะไร เพราะอยู่ที่นี่แล้ว
@@ -88,6 +93,12 @@ const DashboardScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+
+      {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
+                        </TouchableOpacity>
+
       <ScrollView style={styles.container}>
         {/* --- Header --- */}
         <View style={styles.header}>
@@ -182,6 +193,13 @@ const DashboardScreen = () => {
 
 // --- 6. Stylesheet (แก้ไข chartPlaceholder) ---
 const styles = StyleSheet.create({
+  backButton: {
+        position: 'absolute', // ทำให้ปุ่มลอย
+        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        left: 15,
+        zIndex: 10, // ให้อยู่ด้านบนสุด
+        padding: 5,
+    },
   // (Styles อื่นๆ คงเดิม)
   safeArea: {
     flex: 1,
@@ -199,8 +217,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0056b3',
+        fontWeight: 'bold',
+        color: '#0056b3',
+        marginHorizontal: 16,
+        marginTop: 10,
+        marginBottom: 10,
+        textAlign: 'center', 
+        paddingLeft: 130,
   },
   metricsRow: {
     flexDirection: 'row',

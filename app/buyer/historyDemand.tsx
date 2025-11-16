@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
 import { Stack, useRouter } from 'expo-router'; // ใช้ Stack เพื่อตั้งค่า Header
+import { Ionicons } from '@expo/vector-icons'; 
+
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
 // 💡 Path เหล่านี้สมมติว่า HistoryDemandScreen อยู่ใน app/buyer/
@@ -46,6 +48,13 @@ interface DemandCardProps {
     onDelete: (id: string) => void;
 }
 
+    const router = useRouter();
+
+// 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
+    const handleBack = () => {
+        router.back();
+    };
+    
 const DemandCard: React.FC<DemandCardProps> = ({
     id,
     productName,
@@ -126,14 +135,10 @@ export default function HistoryDemandScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <Stack.Screen 
-                options={{ 
-                    // 1. แสดง Header ของ Stack Router และกำหนด Style
-                    headerShown: true, 
-                    title: 'ประวัติความต้องการ', 
-                }} 
-            />
-            
+            {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
+                        </TouchableOpacity>
             <View style={styles.contentWrapper}>
                 <Text style={styles.pageTitle}>ประวัติความต้องการ</Text>
                 
@@ -187,6 +192,13 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingVertical: 15,
         paddingBottom: 80, // เว้นที่ว่างให้ Navbar
+    },//  Style สำหรับปุ่มย้อนกลับ
+    backButton: {
+        position: 'absolute', // ทำให้ปุ่มลอย
+        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        left: 15,
+        zIndex: 10, // ให้อยู่ด้านบนสุด
+        padding: 5,
     },
 });
 

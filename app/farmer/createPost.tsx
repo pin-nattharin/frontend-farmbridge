@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 // 🟢 2. เพิ่ม Import ไอคอน
 import { MaterialIcons } from '@expo/vector-icons'; 
+import { Ionicons } from '@expo/vector-icons';
 
 // (Import Components และ api เหมือนเดิม)
 import Button from '../../components/ui/Button';
@@ -123,6 +124,10 @@ export default function CreatePostScreen() {
     setPickup_Date(currentDate);
   };
 
+  const handleBack = () => {
+        router.back();
+    };
+
   // 🟢 3. แก้ไข handlePost
   const handlePost = useCallback(async () => {
     if (isLoading) return;
@@ -134,6 +139,8 @@ export default function CreatePostScreen() {
     }
 
     setIsLoading(true);
+
+    
 
     // 🟢 4. (แก้ไข) เปลี่ยน .now() เป็น .name
     const simulated_image_url = image_url.map(file => {
@@ -173,32 +180,33 @@ export default function CreatePostScreen() {
 
   return (
     <>
-    <Stack.Screen
-        options={{
-          title: 'ฟีเจอร์ประกาศขาย',
-          headerBackTitle: 'กลับ',
-          headerRight: () => (
-            <Button
+      {/* 🟢 5. (สำคัญ) เพิ่ม ScrollView ห่อฟอร์ม */}
+      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+        
+        {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
+                        </TouchableOpacity>
+
+        {/* 🟢 6. (แก้ไข) UI ปุ่มเลือกรูป (เปลี่ยน selectedFile -> image_url) */}
+        <View style={styles.uploadContainer}>
+
+          <Button
               title={isLoading ? 'กำลังโพสต์...' : 'โพสต์'} 
               onPress={handlePost} 
               variant="default"
               style={{ 
-                marginVertical: 0,
+                marginTop: 40,
+                marginVertical: 20,
                 marginRight: 10,
                 paddingVertical: 8,
                 paddingHorizontal: 16,
+                width: 100,
+                alignSelf: 'flex-end',
               }}
               disabled={isLoading} 
             />
-          ),
-        }}
-      />
-      
-      {/* 🟢 5. (สำคัญ) เพิ่ม ScrollView ห่อฟอร์ม */}
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        
-        {/* 🟢 6. (แก้ไข) UI ปุ่มเลือกรูป (เปลี่ยน selectedFile -> image_url) */}
-        <View style={styles.uploadContainer}>
+
           <Text style={styles.label}>รูปภาพสินค้า</Text>
           <TouchableOpacity 
             style={styles.uploadBox} 
@@ -331,6 +339,13 @@ const styles = StyleSheet.create({
     margin: 16,
     borderRadius: 12,
   },
+  backButton: {
+        position: 'absolute', // ทำให้ปุ่มลอย
+        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        left: 15,
+        zIndex: 10, // ให้อยู่ด้านบนสุด
+        padding: 5,
+    },
   
   // 🟢 7. (Styles รูปภาพใหม่)
   uploadContainer: {
