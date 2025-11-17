@@ -1,51 +1,31 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TouchableOpacity, Image } from 'react-native';
-import { Stack, useRouter } from 'expo-router'; // ใช้ Stack เพื่อตั้งค่า Header
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router'; 
 import { Ionicons } from '@expo/vector-icons'; 
 
-
-// *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
-// 💡 Path เหล่านี้สมมติว่า HistoryDemandScreen อยู่ใน app/buyer/
 import BuyerNavbar from '../../components/ui/BuyerNavbar'; 
+import api from '../../services/api'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ----------------------------------------------------
-// DUMMY DATA
-// ----------------------------------------------------
-const demandList = [
-    { 
-        id: '1', 
-        productName: 'มะม่วง', 
-        quantity: 30, 
-        unit: 'กิโลกรัม', 
-        imageUrl: 'https://picsum.photos/id/66/100/100',
-    },
-    { 
-        id: '2', 
-        productName: 'ทุเรียน', 
-        quantity: 20, 
-        unit: 'กิโลกรัม', 
-        imageUrl: 'https://picsum.photos/id/1080/100/100',
-    },
-    { 
-        id: '3', 
-        productName: 'สับปะรด', 
-        quantity: 50, 
-        unit: 'ลูก', 
-        imageUrl: 'https://picsum.photos/id/35/100/100',
-    },
-];
-
-// ----------------------------------------------------
-// Component Card (DemandCard - ถูกย้ายมาไว้ด้านในเพื่อความสมบูรณ์ของโค้ด)
-// ----------------------------------------------------
-
-interface DemandCardProps {
-    id: string;
-    productName: string;
-    quantity: number;
+// Interface ให้ตรงกับ Model Demands
+interface DemandItem {
+    id: number;
+    product_name: string;
+    desired_quantity: string;
     unit: string;
-    imageUrl: string;
-    onDelete: (id: string) => void;
+    created_at: string;
+    // (อาจจะมี field อื่นๆ เพิ่มเติม)
+}
+
+// ----------------------------------------------------
+// Component Card
+// ----------------------------------------------------
+interface DemandCardProps {
+    id: number;
+    productName: string;
+    quantity: string;
+    unit: string;
+    onDelete: (id: number) => void;
 }
     
 const DemandCard: React.FC<DemandCardProps> = ({
@@ -53,21 +33,23 @@ const DemandCard: React.FC<DemandCardProps> = ({
     productName,
     quantity,
     unit,
-    imageUrl,
     onDelete,
 }) => {
+    // เลือกรูปภาพตามชื่อสินค้า (หรือใช้ Default)
+    let imageUrl = 'https://via.placeholder.com/100';
+    if (productName.includes('มะม่วง')) imageUrl = 'https://picsum.photos/id/66/100/100'; // ตัวอย่าง
+    else if (productName.includes('ทุเรียน')) imageUrl = 'https://picsum.photos/id/1080/100/100';
+
     return (
         <View style={cardStyles.card}>
             <View style={cardStyles.imageContainer}>
-            {/* 1. รูปภาพ */}
-            <Image
-                source={{ uri: imageUrl }} 
-                style={cardStyles.image}
-                resizeMode="cover"
-            />
-        </View>
+                <Image
+                    source={{ uri: imageUrl }} 
+                    style={cardStyles.image}
+                    resizeMode="cover"
+                />
+            </View>
             
-            {/* 2. รายละเอียดและปุ่ม */}
             <View style={cardStyles.infoContainer}>
                 <View>
                     <Text style={cardStyles.productName}>{productName}</Text>
@@ -76,7 +58,6 @@ const DemandCard: React.FC<DemandCardProps> = ({
                     </Text>
                 </View>
                 
-                {/* ปุ่ม ลบ */}
                 <TouchableOpacity 
                     style={cardStyles.deleteButton}
                     onPress={() => onDelete(id)}
@@ -90,7 +71,7 @@ const DemandCard: React.FC<DemandCardProps> = ({
 
 
 // ----------------------------------------------------
-// 3. หน้าจอหลัก HistoryDemandScreen
+// หน้าจอหลัก HistoryDemandScreen
 // ----------------------------------------------------
 
 type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
@@ -98,14 +79,44 @@ type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
 export default function HistoryDemandScreen() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<ActiveTab>('list'); 
-    const [demands, setDemands] = useState(demandList);
+    
+    const [demands, setDemands] = useState<DemandItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    // 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
+    // ฟังก์ชันดึงข้อมูลจาก API
+    const fetchDemands = async () => {
+        try {
+            const token = await AsyncStorage.getItem('userToken');
+            if (!token) return;
+
+            const response = await api.get('/demands', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            setDemands(response.data);
+        } catch (error) {
+            console.error("Fetch Demands Error:", error);
+            // Alert.alert("ผิดพลาด", "ไม่สามารถดึงข้อมูลประวัติได้");
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    // เรียกใช้เมื่อหน้าจอถูกโฟกัส (เปิดเข้ามา)
+    useFocusEffect(
+        useCallback(() => {
+            setLoading(true);
+            fetchDemands();
+        }, [])
+    );
+
     const handleBack = () => {
         router.back();
     };
 
-    const handleDelete = (id: string) => {
+    const handleDelete = (id: number) => {
         Alert.alert(
             "ยืนยันการลบ",
             "คุณต้องการลบรายการนี้ใช่หรือไม่?",
@@ -113,9 +124,21 @@ export default function HistoryDemandScreen() {
                 { text: "ยกเลิก", style: "cancel" },
                 { 
                     text: "ลบ", 
-                    onPress: () => {
-                        setDemands(demands.filter(d => d.id !== id));
-                        console.log(`Demand ${id} deleted.`);
+                    onPress: async () => {
+                        try {
+                            const token = await AsyncStorage.getItem('userToken');
+                            // ยิง API ลบ
+                            await api.delete(`/demands/${id}`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                            });
+                            
+                            // อัปเดตหน้าจอโดยไม่ต้องโหลดใหม่ทั้งหมด
+                            setDemands(prev => prev.filter(d => d.id !== id));
+                            Alert.alert("สำเร็จ", "ลบรายการเรียบร้อยแล้ว");
+                        } catch (error) {
+                            console.error("Delete Error:", error);
+                            Alert.alert("ล้มเหลว", "ไม่สามารถลบรายการได้");
+                        }
                     },
                     style: "destructive"
                 }
@@ -131,39 +154,57 @@ export default function HistoryDemandScreen() {
             router.push('/buyer/createDemand');
         } else if (tab === 'notify') {
             router.replace('/buyer/notificationDemand');
-        } else if (tab === 'profile' || tab === 'list') {
-            return;
+        } else if (tab === 'profile') {
+            router.push('/buyer/buyerProfile');
         }
     };
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
-                        </TouchableOpacity>
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={24} color="#0056b3" />
+            </TouchableOpacity>
+            
             <View style={styles.contentWrapper}>
                 <Text style={styles.pageTitle}>ประวัติความต้องการ</Text>
                 
-                {/* Body Content */}
-                <ScrollView contentContainerStyle={styles.scrollContent}>
-                    {demands.map(demand => (
-                        <DemandCard
-                            key={demand.id}
-                            {...demand}
-                            onDelete={handleDelete}
-                        />
-                    ))}
-                    <View style={{ height: 20 }} /> 
-                </ScrollView>
+                {loading ? (
+                    <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                        <ActivityIndicator size="large" color="#0056b3" />
+                    </View>
+                ) : (
+                    <ScrollView 
+                        contentContainerStyle={styles.scrollContent}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchDemands();}} />
+                        }
+                    >
+                        {demands.length === 0 ? (
+                            <View style={{marginTop: 50, alignItems: 'center'}}>
+                                <Text style={{color: '#999', fontSize: 16}}>ไม่มีประวัติความต้องการ</Text>
+                            </View>
+                        ) : (
+                            demands.map(demand => (
+                                <DemandCard
+                                    key={demand.id}
+                                    id={demand.id}
+                                    productName={demand.product_name}
+                                    quantity={demand.desired_quantity}
+                                    unit={demand.unit}
+                                    onDelete={handleDelete}
+                                />
+                            ))
+                        )}
+                        <View style={{ height: 20 }} /> 
+                    </ScrollView>
+                )}
                 
-                {/* Bottom Navbar */}
                 <BuyerNavbar
                     onHomePress={() => handleNavPress('home')}
-                    onListPress={() => handleNavPress('list')}
+                    onListPress={() => {}} // อยู่หน้านี้อยู่แล้ว
                     onAddPress={() => handleNavPress('add')}
                     onNotifyPress={() => handleNavPress('notify')}
-                    onProfilePress={() => setActiveTab('profile')}
+                    onProfilePress={() => handleNavPress('profile')}
                     activeTab={activeTab}
                 />
             </View>
@@ -172,9 +213,8 @@ export default function HistoryDemandScreen() {
 }
 
 // ----------------------------------------------------
-// 4. Stylesheet (สำหรับหน้าจอหลัก)
+// 5. Stylesheet (สำหรับ Demand Card)
 // ----------------------------------------------------
-
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
@@ -194,21 +234,16 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingVertical: 15,
-        paddingBottom: 80, // เว้นที่ว่างให้ Navbar
-    },//  Style สำหรับปุ่มย้อนกลับ
+        paddingBottom: 80, 
+    },
     backButton: {
-        position: 'absolute', // ทำให้ปุ่มลอย
-        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        position: 'absolute', 
+        top: 50, 
         left: 15,
-        zIndex: 10, // ให้อยู่ด้านบนสุด
+        zIndex: 10, 
         padding: 5,
     },
 });
-
-
-// ----------------------------------------------------
-// 5. Stylesheet (สำหรับ Demand Card)
-// ----------------------------------------------------
 
 const cardStyles = StyleSheet.create({
     card: {

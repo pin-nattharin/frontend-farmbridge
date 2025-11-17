@@ -1,134 +1,119 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
     View, 
     Text, 
     StyleSheet, 
     SafeAreaView, 
     ScrollView, 
-    TouchableOpacity, // 🆕 Import TouchableOpacity
+    TouchableOpacity, 
     Image, 
-    Alert 
+    Alert,
+    ActivityIndicator,
+    RefreshControl
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons'; 
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons'; 
 import * as Linking from 'expo-linking'; 
 
-// *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
 import BuyerNavbar from '../../components/ui/BuyerNavbar'; 
+import api from '../../services/api'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ----------------------------------------------------
-// 1. DUMMY DATA
-// ----------------------------------------------------
-
-interface BuyHistoryItem {
-    id: string; // 🆕 เพิ่ม id สำหรับการนำทาง
-    productName: string;
-    quantity: number;
-    unit: string;
-    pricePerUnit: number; 
-    totalPrice: number; 
-    sellerLocation: string;
-    sellerPhone: string;
-    imageUrl: string;
+// 1. Interface ให้ตรงกับข้อมูลจริงจาก API (order.controller.js)
+interface OrderItem {
+    id: number;
+    quantity_ordered: string;
+    total_price: string;
+    status: string;
+    confirmation_code: string;
+    created_at: string;
+    Listing?: {
+        id: number;
+        product_name: string;
+        unit?: string;
+        image_url?: string[];
+    };
+    Seller?: {
+        fullname: string;
+        phone: string;
+        address?: string;
+    };
 }
 
-const historyList: BuyHistoryItem[] = [
-    { 
-        id: '1', 
-        productName: 'มะม่วง', 
-        quantity: 30, 
-        unit: 'กิโลกรัม', 
-        pricePerUnit: 30,
-        totalPrice: 900,
-        sellerLocation: 'สบายดีฟาร์ม อ.ฝาง, จ.เชียงใหม่',
-        sellerPhone: '0981234567',
-        imageUrl: 'https://picsum.photos/id/66/100/100',
-    },
-    { 
-        id: '2', 
-        productName: 'ทุเรียน', 
-        quantity: 20, 
-        unit: 'กก.', 
-        pricePerUnit: 120,
-        totalPrice: 2400,
-        sellerLocation: 'แฮปปี้ฟาร์ม อ.ดอยหล่อ, จ.เชียงใหม่',
-        sellerPhone: '0997654321',
-        imageUrl: 'https://picsum.photos/id/1080/100/100',
-    },
-];
+const IMAGE_BASE_URL = 'http://10.0.2.2:3000'; // ปรับ IP ตามเครื่อง Server
 
 // ----------------------------------------------------
 // 2. Component: BuyHistoryCard
 // ----------------------------------------------------
-
-interface BuyHistoryCardProps extends BuyHistoryItem {
-    onPress: () => void; // เพิ่ม Prop สำหรับการคลิก
+interface BuyHistoryCardProps {
+    item: OrderItem;
+    onPress: () => void;
 }
 
-const BuyHistoryCard: React.FC<BuyHistoryCardProps> = ({
-    onPress, // รับ onPress
-    productName,
-    quantity,
-    unit,
-    pricePerUnit,
-    totalPrice,
-    sellerLocation,
-    sellerPhone,
-    imageUrl,
-}) => {
-    // ฟังก์ชันสำหรับโทรออก
+const BuyHistoryCard: React.FC<BuyHistoryCardProps> = ({ item, onPress }) => {
+    // ดึงข้อมูลมาแสดง (กัน Null)
+    const listing = item.Listing;
+    const seller = item.Seller;
+    
+    const productName = listing?.product_name || 'สินค้าไม่ระบุ';
+    const quantity = parseFloat(item.quantity_ordered);
+    const totalPrice = parseFloat(item.total_price);
+    const unit = listing?.unit || 'หน่วย'; // ถ้าใน listing มี unit ให้ดึงมาใช้ (ถ้า API ส่งมา)
+    
+    // จัดการรูปภาพ
+    let imageUrl = 'https://via.placeholder.com/150';
+    if (listing?.image_url && listing.image_url.length > 0) {
+        const path = listing.image_url[0];
+        if (path.startsWith('http')) imageUrl = path;
+        else imageUrl = `${IMAGE_BASE_URL}${path}`;
+    }
+
     const handleCall = () => {
-        // ต้องหยุดการแพร่เหตุการณ์เพื่อไม่ให้เรียก onPress ของการ์ด
-        // e.stopPropagation(); 
-        Linking.openURL(`tel:${sellerPhone}`);
+        if (seller?.phone) Linking.openURL(`tel:${seller.phone}`);
+        else Alert.alert("ไม่พบเบอร์โทรศัพท์");
     };
 
+    // แปลงวันที่
+    const dateStr = new Date(item.created_at).toLocaleDateString('th-TH', {
+        day: 'numeric', month: 'short', year: '2-digit'
+    });
+
     return (
-        // 🆕 ใช้ TouchableOpacity ครอบ View ทั้งหมด เพื่อให้คลิกได้
-        <TouchableOpacity style={cardStyles.touchable} onPress={onPress}>
+        <TouchableOpacity style={cardStyles.touchable} onPress={onPress} activeOpacity={0.9}>
             <View style={cardStyles.card}>
-                {/* 1. รูปภาพ */}
-                <Image
-                    source={{ uri: imageUrl }} 
-                    style={cardStyles.image}
-                    resizeMode="cover"
-                />
+                {/* รูปภาพ */}
+                <Image source={{ uri: imageUrl }} style={cardStyles.image} resizeMode="cover" />
                 
-                {/* 2. รายละเอียด */}
+                {/* รายละเอียด */}
                 <View style={cardStyles.infoContainer}>
                     
-                    {/* Product Name และ Call Button */}
+                    {/* Header: ชื่อสินค้า + ปุ่มโทร */}
                     <View style={cardStyles.headerRow}>
-                        <Text style={cardStyles.productName}>{productName}</Text>
-                        <TouchableOpacity 
-                            onPress={handleCall} 
-                            // 💡 หากต้องการให้ปุ่มโทรออกทำงานเท่านั้น
-                            // และไม่ให้เรียก onPress ของการ์ด ให้เพิ่ม:
-                            // onPress={(e) => { e.stopPropagation(); handleCall(); }} 
-                        >
-                            <MaterialIcons name="call" size={24} color="#28a745" />
+                        <Text style={cardStyles.productName} numberOfLines={1}>{productName}</Text>
+                        <TouchableOpacity onPress={handleCall} style={{padding: 5}}>
+                             <MaterialIcons name="phone" size={22} color="#28a745" />
                         </TouchableOpacity>
                     </View>
 
-                    {/* รายละเอียดสินค้า */}
+                    {/* รายละเอียด Order */}
                     <Text style={cardStyles.details}>
-                        จำนวน : {quantity} {unit}
+                        ซื้อเมื่อ: {dateStr} | รหัส: <Text style={{fontWeight:'bold'}}>{item.confirmation_code}</Text>
                     </Text>
                     <Text style={cardStyles.details}>
-                        ในราคา {pricePerUnit} บาท/{unit}
+                        สถานะ: <Text style={{color: item.status === 'Completed' ? 'green' : 'orange'}}>{item.status}</Text>
                     </Text>
                     
-                    {/* พิกัดผู้ขาย */}
+                    {/* ที่อยู่ผู้ขาย (ถ้ามี) */}
                     <View style={cardStyles.locationRow}>
-                        <MaterialIcons name="location-pin" size={16} color="#0056b3" />
+                        <MaterialIcons name="store" size={16} color="#0056b3" />
                         <Text style={cardStyles.locationText} numberOfLines={1}>
-                            {sellerLocation}
+                            {seller?.fullname || 'ร้านค้า'}
                         </Text>
                     </View>
 
                     {/* ยอดรวม */}
                     <View style={cardStyles.totalRow}>
-                        <Text style={cardStyles.totalLabel}>ยอดชำระเงินทั้งหมด</Text>
+                        <Text style={cardStyles.totalLabel}>{quantity} {unit}</Text>
                         <Text style={cardStyles.totalPrice}>
                             ฿ {totalPrice.toLocaleString()}
                         </Text>
@@ -147,60 +132,106 @@ type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
 
 export default function HistoryBuyScreen() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<ActiveTab>('list'); 
+    const [activeTab, setActiveTab] = useState<ActiveTab>('profile'); 
     
-    const handleNavPress = (tab: ActiveTab) => {
-        setActiveTab(tab);
-        if (tab === 'home') {
-            router.replace('/buyer/homeBuyer');
-        } else if (tab === 'add') {
-            router.push('/buyer/createDemand');
-        } else if (tab === 'notify') {
-            router.replace('/buyer/notificationDemand');
-        } else if (tab === 'profile' || tab === 'list') {
-            return;
+    const [orders, setOrders] = useState<OrderItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    // ✅ ดึงข้อมูลจาก API
+    const fetchHistory = async () => {
+        try {
+            const token = await AsyncStorage.getItem('userToken');
+            if (!token) return;
+
+            // เรียก API ที่เตรียมไว้ใน order.controller.js
+            const response = await api.get('/orders/history/purchase', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            setOrders(response.data);
+
+        } catch (error) {
+            console.error("Fetch History Error:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
     };
+
+    // โหลดทุกครั้งที่เข้าหน้า
+    useFocusEffect(
+        useCallback(() => {
+            setLoading(true);
+            fetchHistory();
+        }, [])
+    );
+
+    const handleNavPress = (tab: ActiveTab) => {
+        setActiveTab(tab);
+        if (tab === 'home') router.replace('/buyer/homeBuyer');
+        else if (tab === 'add') router.push('/buyer/createDemand');
+        else if (tab === 'list') router.replace('/buyer/historyDemand');
+        else if (tab === 'notify') router.replace('/buyer/notificationDemand');
+        else if (tab === 'profile') router.replace('/buyer/buyerProfile');
+    };
     
-    // ฟังก์ชันสำหรับส่งไปยังหน้า ProductDetailScreen
-    const handleCardPress = (id: string) => {
-        // ใช้ router.push เพื่อนำทางไปยังหน้า ProductDetailScreen
-        // และส่ง product id ไปเป็น query parameter
-        router.push(`/productDetail?id=${id}`); 
-        // หากไฟล์ ProductDetailScreen.tsx อยู่ที่ /app/productDetail.tsx
+    // กดแล้วไปหน้า Product Detail ของสินค้านั้น
+    const handleCardPress = (listingId: number) => {
+        if (listingId) {
+            router.push({
+                pathname: '/productDetail',
+                params: { id: listingId }
+            });
+        }
+    };
+
+    const handleBack = () => {
+        router.back();
     };
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <Stack.Screen 
-                options={{ 
-                    headerShown: true, 
-                    title: 'ประวัติการซื้อ', 
-                }} 
-            />
+            <Stack.Screen options={{ headerShown: false }} />
             
             <View style={styles.contentWrapper}>
+                {/* ปุ่มย้อนกลับ */}
+                <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color="#0056b3" />
+                </TouchableOpacity>
+
+                <Text style={styles.pageTitle}>ประวัติการสั่งซื้อ</Text> 
                 
-                <Text style={styles.pageTitle}>ประวัติการซื้อ</Text> 
+                {loading ? (
+                    <View style={{flex:1, justifyContent:'center'}}><ActivityIndicator size="large" color="#0056b3"/></View>
+                ) : (
+                    <ScrollView 
+                        contentContainerStyle={styles.scrollContent}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchHistory();}} />}
+                    >
+                        {orders.length === 0 ? (
+                            <View style={{alignItems:'center', marginTop: 50}}>
+                                <Text style={{color:'#999', fontSize: 16}}>ยังไม่มีประวัติการสั่งซื้อ</Text>
+                            </View>
+                        ) : (
+                            orders.map(item => (
+                                <BuyHistoryCard 
+                                    key={item.id} 
+                                    item={item} 
+                                    onPress={() => handleCardPress(item.Listing?.id || 0)} 
+                                />
+                            ))
+                        )}
+                        <View style={{ height: 20 }} /> 
+                    </ScrollView>
+                )}
                 
-                <ScrollView contentContainerStyle={styles.scrollContent}>
-                    {historyList.map(item => (
-                        <BuyHistoryCard 
-                            key={item.id} 
-                            {...item} 
-                            onPress={() => handleCardPress(item.id)} // ส่งฟังก์ชัน onPress ไป
-                        />
-                    ))}
-                    <View style={{ height: 20 }} /> 
-                </ScrollView>
-                
-                {/* Bottom Navbar */}
                 <BuyerNavbar
                     onHomePress={() => handleNavPress('home')}
                     onListPress={() => handleNavPress('list')}
                     onAddPress={() => handleNavPress('add')}
                     onNotifyPress={() => handleNavPress('notify')}
-                    onProfilePress={() => setActiveTab('profile')}
+                    onProfilePress={() => handleNavPress('profile')}
                     activeTab={activeTab}
                 />
             </View>
@@ -216,11 +247,6 @@ const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: '#f4f4f4',
-    },
-    headerTitleStyle: {
-        fontWeight: 'bold',
-        fontSize: 20,
-        color: '#0056b3', 
     },
     contentWrapper: {
         flex: 1,
@@ -238,12 +264,14 @@ const styles = StyleSheet.create({
         paddingVertical: 5, 
         paddingBottom: 80, 
     },
+    backButton: {
+        position: 'absolute', 
+        top: 50, 
+        left: 15,
+        zIndex: 10, 
+        padding: 5,
+    },
 });
-
-
-// ----------------------------------------------------
-// 5. Stylesheet (สำหรับ BuyHistoryCard)
-// ----------------------------------------------------
 
 const cardStyles = StyleSheet.create({
     touchable: {
@@ -255,65 +283,68 @@ const cardStyles = StyleSheet.create({
         shadowOpacity: 0.08,
         shadowRadius: 3,
         elevation: 2,
+        backgroundColor: '#FFF'
     },
     card: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
         flexDirection: 'row',
-        padding: 10, 
+        padding: 12, 
         alignItems: 'flex-start',
     },
     image: {
-        width: 100,
-        height: 100,
+        width: 90,
+        height: 90,
         borderRadius: 8,
+        backgroundColor: '#eee'
     },
     infoContainer: {
         flex: 1,
-        paddingLeft: 15,
+        paddingLeft: 12,
+        justifyContent: 'space-between',
+        minHeight: 90
     },
     headerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 5,
+        alignItems: 'center',
+        marginBottom: 2,
     },
     productName: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: 'bold',
-        color: '#0056b3',
+        color: '#333',
+        flex: 1,
     },
     details: {
-        fontSize: 14,
+        fontSize: 12,
         color: '#555',
-        marginBottom: 3,
+        marginBottom: 2,
     },
     locationRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 5,
-        marginBottom: 10,
+        marginTop: 4,
+        marginBottom: 6,
     },
     locationText: {
         fontSize: 12,
-        color: '#555',
-        marginLeft: 5,
+        color: '#777',
+        marginLeft: 4,
     },
     totalRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         borderTopWidth: 1,
-        borderTopColor: '#eee',
-        paddingTop: 10,
-        marginTop: 5,
+        borderTopColor: '#f0f0f0',
+        paddingTop: 6,
+        marginTop: 2,
     },
     totalLabel: {
-        fontSize: 14,
+        fontSize: 13,
         color: '#333',
     },
     totalPrice: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: 'bold',
         color: '#0056b3', 
     },
