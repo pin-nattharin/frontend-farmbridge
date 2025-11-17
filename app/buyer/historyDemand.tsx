@@ -47,13 +47,6 @@ interface DemandCardProps {
     imageUrl: string;
     onDelete: (id: string) => void;
 }
-
-    const router = useRouter();
-
-// 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
-    const handleBack = () => {
-        router.back();
-    };
     
 const DemandCard: React.FC<DemandCardProps> = ({
     id,
@@ -106,6 +99,11 @@ export default function HistoryDemandScreen() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<ActiveTab>('list'); 
     const [demands, setDemands] = useState(demandList);
+
+    // 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
+    const handleBack = () => {
+        router.back();
+    };
 
     const handleDelete = (id: string) => {
         Alert.alert(
@@ -185,7 +183,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#0056b3',
         marginHorizontal: 16,
-        marginTop: 20,
+        marginTop: 70,
         marginBottom: 10,
         textAlign: 'center',
     },

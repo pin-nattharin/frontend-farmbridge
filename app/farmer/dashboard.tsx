@@ -77,7 +77,7 @@ const DashboardScreen = () => {
 
   // --- 2. เพิ่มฟังก์ชันสำหรับ Navbar ---
   const handleNavHome = () => {
-    // ไม่ต้องทำอะไร เพราะอยู่ที่นี่แล้ว
+    router.push('/farmer/homeFarmer'); // (แก้ Path ให้ถูก)
   };
   const handleNavChart = () => {
   };
@@ -85,7 +85,7 @@ const DashboardScreen = () => {
     router.push('/farmer/createPost'); // (แก้ Path ให้ถูก)
   };
   const handleNavNotifications = () => {
-    //router.push('/notifications'); // (แก้ Path ให้ถูก)
+    router.push('/farmer/notification'); // (แก้ Path ให้ถูก)
   };
   const handleNavProfile = () => {
     router.push('/farmer/farmerProfile'); // (แก้ Path ให้ถูก)
@@ -220,10 +220,10 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#0056b3',
         marginHorizontal: 16,
-        marginTop: 10,
-        marginBottom: 10,
+        marginTop: 60,
+        marginBottom: 20,
         textAlign: 'center', 
-        paddingLeft: 130,
+        paddingLeft: 120,
   },
   metricsRow: {
     flexDirection: 'row',

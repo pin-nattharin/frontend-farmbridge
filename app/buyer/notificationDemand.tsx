@@ -170,8 +170,8 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#0056b3',
         marginHorizontal: 16,
-        marginTop: 40,
-        marginBottom: 40,
+        marginTop: 70,
+        marginBottom: 20,
         textAlign: 'center', // จัดให้อยู่ตรงกลางตามภาพตัวอย่าง
     },
     scrollContent: {

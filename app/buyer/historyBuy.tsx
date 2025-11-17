@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#0056b3', 
         marginHorizontal: 16,
-        marginTop: 20,
+        marginTop: 70,
         marginBottom: 20,
         textAlign: 'center',
     },

@@ -13,7 +13,7 @@ import {
 import { Stack, useRouter } from 'expo-router';
 
 // (สมมติว่าคุณมีไฟล์ Dropdown ที่ path นี้)
-import CustomDropdown from '../../components/ui/Dropdown'; 
+import CustomDropdown from '../../components/ui/Dropdown';
 
 // --- [NEW] --- (สมมติว่าคุณมีไฟล์ config และ context)
 // (***กรุณาแก้ Path ให้ถูกต้องตามโปรเจกต์ของคุณ***)
@@ -34,7 +34,7 @@ const CreateDemandScreen = () => {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Array<{ label: string; value: string }>>([]); // --- [NEW] --- (เริ่มจากค่าว่าง)
   const [productsLoading, setProductsLoading] = useState(false); // --- [NEW] --- (สถานะโหลด Dropdown)
-  
+
   // --- [NEW] --- (สถานะโหลดตอนกด "ยืนยัน")
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -56,7 +56,7 @@ const CreateDemandScreen = () => {
         }
 
         const productList: string[] = await response.json();
-        
+
         // (อิงจาก demand.controller.js -> getProductOptions)
         // แปลง array [ 'ทุเรียน', 'มะม่วง' ] 
         // ให้เป็น [ { label: 'ทุเรียน', value: 'ทุเรียน' }, { label: 'มะม่วง', value: 'มะม่วง' } ]
@@ -105,7 +105,7 @@ const CreateDemandScreen = () => {
     try {
       // (อิงจาก demand.routes.js -> router.post('/', ...) )
       // (อิงจาก demand.controller.js -> createDemand)
-      const response = await fetch(`/api/demands`, { 
+      const response = await fetch(`/api/demands`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,7 +115,7 @@ const CreateDemandScreen = () => {
           product_name: productName,
           desired_quantity: parseFloat(quantity),
           desired_price: price ? parseFloat(price) : null, // --- [NEW] --- (ส่งค่า price)
-          unit: 'kg', 
+          unit: 'kg',
           // (location_geom จะถูกดึงจาก profile ของ buyer_id ใน backend)
         }),
       });
@@ -168,7 +168,7 @@ const CreateDemandScreen = () => {
             keyboardType="numeric"
             editable={!isSubmitting} // --- [NEW] ---
           />
-          
+
           {/* --- 3. ราคา (TextInput) --- [NEW] --- */}
           <Text style={styles.label}>ราคาที่ต้องการ (บาท / กก.)</Text>
           <TextInput
@@ -182,15 +182,15 @@ const CreateDemandScreen = () => {
 
           {/* --- 4. ปุ่ม --- */}
           <View style={styles.buttonRow}>
-            <TouchableOpacity 
-              style={[styles.button, styles.buttonOutline]} 
+            <TouchableOpacity
+              style={[styles.button, styles.buttonOutline]}
               onPress={handleCancel}
               disabled={isSubmitting} // --- [NEW] ---
             >
               <Text style={styles.buttonOutlineText}>ยกเลิก</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={[styles.button, styles.buttonSolid, isSubmitting && styles.buttonDisabled]} // --- [NEW] ---
               onPress={handleConfirm}
               disabled={isSubmitting} // --- [NEW] ---
@@ -218,6 +218,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 16,
     paddingTop: 24, // ให้การ์ดอยู่ต่ำลงมาหน่อย
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0056b3',
+    marginHorizontal: 16,
+    marginTop: 70,
+    marginBottom: 20,
+    textAlign: 'center',
   },
   card: {
     backgroundColor: 'white',

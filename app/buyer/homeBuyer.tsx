@@ -100,7 +100,7 @@ const HomeScreen: React.FC = () => {
     const handleNavPress = (tab: 'home' | 'list' | 'add' | 'notify' | 'profile') => {
         setActiveTab(tab);
         if (tab === 'home') {
-            //หน้าเดิม
+            router.push('./index');
         } else if (tab === 'add') {
              router.push('/buyer/createDemand'); // ผู้ซื้อสร้าง Demand
         } else if (tab === 'list') {
@@ -239,6 +239,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingVertical: 10,
         paddingBottom: 60, 
+        paddingTop: 50,
     },
     header: {
         fontSize: 22,

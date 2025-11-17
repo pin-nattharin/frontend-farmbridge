@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     },
     backButton: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 50 : 20,
+        top: Platform.OS === 'ios' ? 100 : 40,
         left: 20,
         backgroundColor: 'rgba(255, 255, 255, 0.7)',
         borderRadius: 20,

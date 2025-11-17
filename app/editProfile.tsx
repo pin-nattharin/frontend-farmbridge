@@ -92,17 +92,12 @@ const EditProfileScreen = () => {
     // (JSX ทั้งหมดเหมือนเดิม)
     return (
         <View style={styles.fullScreen}>
-            <LinearGradient
-                colors={['#074E9F', '#22AB67']} 
-                style={styles.background}
-                start={{ x: 0.1, y: 0.1 }}
-                end={{ x: 1, y: 1 }}
-            />
+            
             <SafeAreaView style={styles.safeAreaContent}>
 
                 {/* 🟢 8. เพิ่มปุ่ม Back ที่หายไป */}
                 <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="white" />
+                    <Ionicons name="arrow-back" size={24} color="#074E9F" />
                 </TouchableOpacity>
 
                 <View style={styles.headerContainer}>
@@ -144,6 +139,7 @@ const EditProfileScreen = () => {
 const styles = StyleSheet.create({
     fullScreen: {
         flex: 1,
+        backgroundColor: '#fff',
     },
     background: {
         position: 'absolute',
@@ -163,7 +159,7 @@ const styles = StyleSheet.create({
     },
     header: {
     ...registerBaseStyles.header,
-    color: '#FFFFFF', 
+    color: '#074E9F', 
     fontSize: 30, 
     marginBottom: 20,
   },

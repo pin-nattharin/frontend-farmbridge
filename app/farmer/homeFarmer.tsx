@@ -109,14 +109,14 @@ const HomeScreen: React.FC = () => {
     const handleNavPress = (tab: 'home' | 'chart' | 'add' | 'notifications' | 'profile') => {
         setActiveTab(tab);
         if (tab === 'home') {
-            //หน้าเดิม
+            //หน้าเดิม 
         } else if (tab === 'chart') {
              router.push('/farmer/dashboard'); // ผู้ซื้อสร้าง Demand
         } else if (tab === 'add') {
              router.push('/farmer/createPost'); 
         }
         else if (tab === 'notifications') {
-             //router.push('/farmer/notificationDemand'); 
+             router.push('/farmer/notification'); 
         }
         else if (tab === 'profile') {
              router.push('/farmer/farmerProfile'); 
@@ -249,6 +249,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingVertical: 10,
         paddingBottom: 60, 
+        paddingTop: 50,
     },
     header: {
         fontSize: 22,

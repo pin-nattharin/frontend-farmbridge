@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; // <-- ใช้ MaterialCommunityIcons เพราะมีไอคอนหลากหลายกว่า
+import { Ionicons } from '@expo/vector-icons';
 
 interface FarmerNavbarProps {
   activeTab: 'home' | 'chart' | 'add' | 'notifications' | 'profile';
@@ -28,11 +29,11 @@ const NavbarFarmer: React.FC<FarmerNavbarProps> = ({
     <View style={styles.navbarContainer}>
       {/* Home Button */}
       <TouchableOpacity style={styles.navButton} onPress={onHomePress}>
-        <MaterialCommunityIcons
-          name="home-variant-outline" // ไอคอน Home
-          size={24}
-          color={getIconColor('home')}
-        />
+        <Ionicons
+                                name={activeTab === 'home' ? "home" : "home-outline"}
+                                size={28}
+                                color={getIconColor('home')}
+                            />
         {/* <Text style={[styles.navText, { color: getIconColor('home') }]}>Home</Text> */}
       </TouchableOpacity>
 
@@ -57,21 +58,21 @@ const NavbarFarmer: React.FC<FarmerNavbarProps> = ({
 
       {/* Notifications Button */}
       <TouchableOpacity style={styles.navButton} onPress={onNotificationsPress}>
-        <MaterialCommunityIcons
-          name="bell-outline" // ไอคอนกระดิ่ง
-          size={24}
-          color={getIconColor('notifications')}
-        />
+       <Ionicons
+                               name={activeTab === 'notifications' ? "notifications" : "notifications-outline"}
+                               size={28}
+                               color={getIconColor('notifications')}
+                           />
         {/* <Text style={[styles.navText, { color: getIconColor('notifications') }]}>Alerts</Text> */}
       </TouchableOpacity>
 
       {/* Profile Button */}
       <TouchableOpacity style={styles.navButton} onPress={onProfilePress}>
-        <MaterialCommunityIcons
-          name="account-outline" // ไอคอนคน/โปรไฟล์
-          size={24}
-          color={getIconColor('profile')}
-        />
+        <Ionicons
+                                name={activeTab === 'profile' ? "person" : "person-outline"}
+                                size={28}
+                                color={getIconColor('profile')}
+                            />
         {/* <Text style={[styles.navText, { color: getIconColor('profile') }]}>Profile</Text> */}
       </TouchableOpacity>
     </View>

@@ -8,12 +8,12 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  TextInput,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons'; // (สำหรับไอคอน Checkbox)
 import { Ionicons } from '@expo/vector-icons'; 
 
-const router = useRouter();
 // --- (จำลอง) ข้อมูลที่ถูกส่งมาจากหน้าก่อนหน้า (เช่น หน้า Match) ---
 // ในแอปจริง ข้อมูลนี้จะถูกดึงมาจาก API หรือส่งมาจาก useLocalSearchParams
 const mockTransactionData = {
@@ -26,24 +26,31 @@ const mockTransactionData = {
   // (ข้อมูลเสริมสำหรับ UI)
   seller_location: 'สหกรณ์ฟาร์ม อ.ฝาง, จ.เชียงใหม่',
   product_image: 'https://i.imgur.com/gS4QhmS.jpeg',
-  available_pickup_dates: ['6/11/2025', '7/11/2025'],
+  available_pickup_dates: ['6/11/2025'],
   pickup_deadline: '12/11/2568',
+  wieght_unit: '20 กิโลกรัม',
 };
-
- // 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
-    const handleBack = () => {
-        router.back();
-    };
     
 const PaymentScreen = () => {
   const router = useRouter();
   // const { match_id } = useLocalSearchParams(); // (วิธีรับ ID เพื่อไปดึง data จริง)
-  
+
+  // 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
+    const handleBack = () => {
+        router.back();
+    };
+
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [weightInKg, setWeightInKg] = useState('');
 
   // ฟังก์ชันสำหรับกด "ชำระเงิน"
   const handlePayment = () => {
     // 1. ตรวจสอบว่าเลือกวันหรือยัง
+    if (!weightInKg.trim()) {
+      Alert.alert('โปรดระบุจำนวนกิโลกรัม', 'กรุณากรอกจำนวนกิโลกรัมที่ต้องการซื้อ');
+      return;
+    }
+
     if (!selectedDate) {
       Alert.alert('โปรดเลือกวัน', 'กรุณาเลือกวันที่สะดวกไปรับสินค้า');
       return;
@@ -98,15 +105,18 @@ const PaymentScreen = () => {
           
           <View style={styles.divider} />
 
-          {/* --- 2. ส่วนเลือกวันนัดรับ --- */}
-          <View style={styles.deadlineTag}>
-            <Text style={styles.deadlineText}>
-              ควรมารับก่อนวันที่ {mockTransactionData.pickup_deadline}
-            </Text>
-          </View>
+          <Text style={styles.inputLabel}>จำนวนกิโลกรัมที่ต้องการซื้อ</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="เช่น 20"
+            placeholderTextColor="#9aa0a6"
+            keyboardType="numeric"
+            value={weightInKg}
+            onChangeText={setWeightInKg}
+          />
 
         <View style={styles.selectionRow}></View>
-          <Text style={styles.dateHeader}>ช่วงเวลาที่ต้องการเข้าไปรับสินค้า</Text>
+          <Text style={styles.dateHeader}>วันที่ต้องเข้าไปรับสินค้า</Text>
           <View style={styles.dateRow}>
           {mockTransactionData.available_pickup_dates.map((date) => (
             <TouchableOpacity 
@@ -151,9 +161,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#074E9F',
-    marginTop: 30,
+    marginTop: 70,
     marginBottom: 20,
-    marginLeft: 110,
+    marginLeft: 100,
     paddingLeft: 40,
   },//  Style สำหรับปุ่มย้อนกลับ
     backButton: {
@@ -240,7 +250,7 @@ const styles = StyleSheet.create({
   dateHeader: {
     fontSize: 14,
     color: '#555',
-    marginBottom: 8,
+    marginTop: 8,
   },
   dateOption: {
     flexDirection: 'row',
@@ -289,6 +299,28 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 6,
+    marginTop: 6,
+  },
+  input: {
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#d0d7de',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: '#111',
+  },
+  inputHelper: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 6,
   },
 });
 

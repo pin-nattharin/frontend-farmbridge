@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: 'bold',
         color: 'white',
-        marginTop: 10,
+        marginTop: 70,
     },
     contentCard: {
         backgroundColor: 'white',

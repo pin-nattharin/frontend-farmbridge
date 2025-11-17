@@ -196,7 +196,7 @@ export default function CreatePostScreen() {
               onPress={handlePost} 
               variant="default"
               style={{ 
-                marginTop: 40,
+                marginTop: 30,
                 marginVertical: 20,
                 marginRight: 10,
                 paddingVertical: 8,

@@ -63,8 +63,6 @@ const VerifyPickupScreen = () => {
                             <Ionicons name="arrow-back" size={24} color="#0056b3" />
                         </TouchableOpacity>
 
-      <Stack.Screen options={{ title: 'ตรวจสอบรายการ' }} />
-
       <Text style={styles.pageTitle}>ตรวจสอบรายการ</Text>
 
       <ScrollView contentContainerStyle={styles.container}>
@@ -194,9 +192,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#074E9F',
-    marginTop: 30,
-    marginBottom: 20,
-    marginLeft: 110,
+    marginTop: 70,
+    marginBottom: 10,
+    marginLeft: 100,
     paddingLeft: 20,
   },
 });
