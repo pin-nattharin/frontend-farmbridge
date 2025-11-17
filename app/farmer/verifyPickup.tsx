@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,96 +9,128 @@ import {
   TextInput,
   Image,
   Alert,
+  ActivityIndicator
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
-// --- (จำลอง) ข้อมูลรายการที่จะตรวจสอบ ---
-const mockItem = {
-  id: 1,
-  sellerName: 'ณัฐรินทร์ อาณัติธนันท์กุล',
-  productName: 'มะม่วง',
-  quantity: 30, // กก.
-  price: 900, // บาท
-  imageUrl: 'https://i.imgur.com/gS4QhmS.jpeg', // (รูปมะม่วงตัวอย่าง)
-  pickup_code: 'ABC123', // (นี่คือรหัสที่ถูกต้อง)
-};
+import api from '../../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const VerifyPickupScreen = () => {
   const router = useRouter();
+  
+  // ✅ รับ ID จากหน้า Notification
+  const { orderId } = useLocalSearchParams();
+  
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [orderData, setOrderData] = useState<any>(null);
 
-  const handleBack = () => {
-    router.back();
-  };
+  // ✅ ดึงข้อมูลออเดอร์จริง
+  useEffect(() => {
+    const fetchOrder = async () => {
+        try {
+            const token = await AsyncStorage.getItem('userToken');
+            // Backend ต้องมี API: GET /orders/:id (เพื่อดูรายละเอียด)
+            // (ถ้ายังไม่มี ให้ใช้ข้อมูลจาก params ไปพลางๆ หรือสร้าง API เพิ่ม)
+            // สมมติว่ามี API นี้แล้ว:
+            /* const response = await api.get(`/orders/${orderId}`, { headers: ... });
+               setOrderData(response.data);
+            */
+            
+            // *ถ้า Backend ยังไม่พร้อม ให้ Mock ไปก่อนว่ามีข้อมูล*
+            setOrderData({
+                id: orderId,
+                productName: 'สินค้า (รอ API)',
+                buyerName: 'ลูกค้า (รอ API)',
+                quantity: '-',
+                totalPrice: '-'
+            });
 
-  // ฟังก์ชันเมื่อกดปุ่ม "เสร็จสิ้น"
-  const handleFinish = () => {
+        } catch (error) {
+            Alert.alert("Error", "ไม่สามารถโหลดข้อมูลได้");
+        } finally {
+            setFetching(false);
+        }
+    };
+
+    if(orderId) fetchOrder();
+  }, [orderId]);
+
+  const handleFinish = async () => {
     if (loading) return;
-    setLoading(true);
+    if (!code.trim()) {
+        Alert.alert("แจ้งเตือน", "กรุณากรอกรหัส");
+        return;
+    }
 
-    // --- (จำลอง) การตรวจสอบรหัส ---
-    // ในแอปจริง ส่วนนี้ควรยิง API ไปที่ Server
-    // เพื่อตรวจสอบว่า code ที่กรอก ตรงกับ mockItem.pickup_code หรือไม่
-    
-    setTimeout(() => { // (จำลองการหน่วงเวลาของ API)
-      if (code.trim().toUpperCase() === mockItem.pickup_code) {
-        // --- ถ้ารหัสถูกต้อง ---
-        // นำทางไปยังหน้าที่ 2 (หน้าสำเร็จ)
-        router.push('/farmer/pickupSuccess');
-      } else {
-        // --- ถ้ารหัสผิด ---
-        Alert.alert('รหัสผิดพลาด', 'รหัสยืนยันรับสินค้าไม่ถูกต้อง');
-      }
-      setLoading(false);
-    }, 500);
+    setLoading(true);
+    try {
+        const token = await AsyncStorage.getItem('userToken');
+        
+        // ✅ ยิง API ยืนยันรหัส (ไปที่ order.controller.js -> confirmPickup)
+        const response = await api.post(`/orders/${orderId}/confirm`, {
+            confirmation_code: code.trim()
+        }, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        Alert.alert("สำเร็จ", "ยืนยันการส่งมอบเรียบร้อยแล้ว!", [
+            { text: "ตกลง", onPress: () => router.replace('/farmer/dashboard') }
+        ]);
+
+    } catch (error: any) {
+        const msg = error.response?.data?.message || "รหัสไม่ถูกต้อง หรือเกิดข้อผิดพลาด";
+        Alert.alert("ผิดพลาด", msg);
+    } finally {
+        setLoading(false);
+    }
   };
+
+  if (fetching) {
+      return <SafeAreaView style={styles.safeArea}><ActivityIndicator size="large" color="#0056b3" style={{marginTop:50}}/></SafeAreaView>;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-
-      {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
-                        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#0056b3" />
+        </TouchableOpacity>
 
       <Text style={styles.pageTitle}>ตรวจสอบรายการ</Text>
 
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
             
-          {/* --- ส่วนข้อมูลสินค้า --- */}
+          {/* แสดงข้อมูล (ที่ดึงมาจาก API หรือ Mock) */}
           <View style={styles.itemContainer}>
-            <Image source={{ uri: mockItem.imageUrl }} style={styles.itemImage} />
+            <Image source={{ uri: 'https://via.placeholder.com/150' }} style={styles.itemImage} />
             <View style={styles.itemInfo}>
-              <Text style={styles.sellerName}>{mockItem.sellerName}</Text>
-              <Text style={styles.itemText}>ความต้องการ : {mockItem.productName}</Text>
-              <Text style={styles.itemText}>จำนวน : {mockItem.quantity} กก.</Text>
-              <Text style={styles.itemText}>ราคา : {mockItem.price} บาท</Text>
+              {/* แสดงข้อมูลจริงถ้ามี */}
+              <Text style={styles.sellerName}>ผู้ซื้อ: {orderData?.buyerName}</Text>
+              <Text style={styles.itemText}>สินค้า: {orderData?.productName}</Text>
+              <Text style={styles.itemText}>จำนวน: {orderData?.quantity}</Text>
+              <Text style={styles.itemText}>ยอดเงิน: {orderData?.totalPrice} บาท</Text>
             </View>
           </View>
 
-          {/* --- ส่วนกรอกรหัส --- */}
           <Text style={styles.label}>กรอกรหัสสินค้าจากผู้ซื้อ</Text>
           <TextInput
             style={styles.inputBox}
-            placeholder="กรอกรหัส 6 หลัก"
+            placeholder="กรอกรหัส 6 หลัก (เช่น ABC123)"
             value={code}
             onChangeText={setCode}
-            maxLength={10} // (ตาม Schema VARCHAR(10))
+            maxLength={10}
             autoCapitalize="characters"
           />
 
-          {/* --- ปุ่มเสร็จสิ้น --- */}
           <TouchableOpacity 
             style={styles.buttonSolid} 
             onPress={handleFinish}
             disabled={loading}
           >
-            <Text style={styles.buttonSolidText}>
-              {loading ? 'กำลังตรวจสอบ...' : 'เสร็จสิ้น'}
-            </Text>
+            {loading ? <ActivityIndicator color="white"/> : <Text style={styles.buttonSolidText}>ยืนยันการส่งมอบ</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>

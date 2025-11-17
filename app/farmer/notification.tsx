@@ -1,170 +1,139 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, Alert, Platform } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Linking from 'expo-linking'; // สำหรับการโทรออก
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 
-// *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
 import NavbarFarmer from '../../components/ui/FarmerNavbar';
+import api from '../../services/api'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ----------------------------------------------------
-// 1. DUMMY DATA
-// ----------------------------------------------------
-
-interface SaleNotificationItem {
-    id: string;
-    buyerName: string;
-    productName: string;
-    quantity: number;
-    totalPrice: number;
-    pickupDeadline: string;
-    buyerPhone: string;
+interface NotificationItem {
+    id: number;
+    type: string;
+    message: string;
+    related_id: number;
+    created_at: string;
+    is_read: boolean;
+    OrderInfo?: {
+        total_price: string;
+        quantity_ordered: string;
+        Buyer?: {
+            fullname: string;
+            phone: string;
+        };
+    };
 }
-
-const saleNotificationList: SaleNotificationItem[] = [
-    {
-        id: '1',
-        buyerName: 'ณัฐรินทร์',
-        productName: 'มะม่วง',
-        quantity: 30,
-        totalPrice: 900,
-        pickupDeadline: '7/11/2568',
-        buyerPhone: '0981112222',
-    },
-    {
-        id: '2',
-        buyerName: 'วริศรา',
-        productName: 'ทุเรียน',
-        quantity: 20,
-        totalPrice: 2400,
-        pickupDeadline: '10/11/2568',
-        buyerPhone: '0993334444',
-    },
-];
-
-// ----------------------------------------------------
-// 2. Component: SaleNotificationCard
-// ----------------------------------------------------
-
-interface SaleCardProps extends SaleNotificationItem {
-    onPressCall: () => void;
-    onPressCard: () => void;
-}
-
-const SaleNotificationCard: React.FC<SaleCardProps> = ({
-    buyerName,
-    productName,
-    quantity,
-    totalPrice,
-    pickupDeadline,
-    buyerPhone,
-    onPressCall,
-    onPressCard,
-}) => {
-    return (
-
-        <TouchableOpacity
-            style={cardStyles.card}
-            onPress={onPressCard}
-            activeOpacity={0.8}
-        >
-
-            {/* แถบสีน้ำเงินด้านซ้าย (Indicator) */}
-            <View style={cardStyles.indicator} />
-
-            <View style={cardStyles.content}>
-
-                <View style={cardStyles.headerRow}>
-                    <Text style={cardStyles.statusText}>ขายได้แล้ว !</Text>
-
-                    <TouchableOpacity onPress={onPressCall}>
-                        <MaterialCommunityIcons name="phone" size={24} color="#28a745" />
-                    </TouchableOpacity>
-                </View>
-
-                {/* Main Message */}
-                <Text style={cardStyles.messageLine}>
-                    <Text style={cardStyles.buyerNameText}>{buyerName} </Text>
-                    ชำระค่า{productName} {quantity} กก. เป็นเงิน {totalPrice} บาทอยู่ในระบบ
-                </Text>
-
-                {/* Deadline */}
-                <Text style={cardStyles.deadlineText}>
-                    กรุณาเตรียมของก่อน {pickupDeadline}
-                </Text>
-            </View>
-        </TouchableOpacity>
-    );
-};
-
-
-// ----------------------------------------------------
-// 3. หน้าจอหลัก SaleNotificationScreen
-// ----------------------------------------------------
-
-type ActiveTab = 'home' | 'chart' | 'add' | 'notifications' | 'profile';
 
 export default function SaleNotificationScreen() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<ActiveTab>('notifications');
+    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const fetchNotifications = async () => {
+        try {
+            const token = await AsyncStorage.getItem('userToken');
+            if (!token) return;
+
+            const response = await api.get('/notifications', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setNotifications(response.data);
+        } catch (error) {
+            console.error("Fetch Noti Error:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchNotifications();
+        }, [])
+    );
+
+    const handleCardPress = (item: NotificationItem) => {
+        //if (item.type === 'sale' && item.related_id) {
+            // ✅ พาไปหน้า verifyPickup พร้อมส่ง orderId
+            router.push({
+                pathname: '/farmer/verifyPickup',
+                params: { orderId: item.related_id } 
+            });
+        //} else {
+            //Alert.alert("แจ้งเตือน", item.message);
+        //}
+    };
 
     const handleCall = (phone: string) => {
-        Linking.openURL(`tel:${phone}`);
+        if (phone) Linking.openURL(`tel:${phone}`);
     };
-
-    const handleBack = () => {
-        router.back();
-    };
-
-    const handleCardPress = (id: string) => {
-        router.push(`/farmer/verifyPickup?id=${id}`);
-    };
-
-    const handleNavPress = (tab: ActiveTab) => {
-        setActiveTab(tab);
-        if (tab === 'home') {
-            router.replace('/farmer/homeFarmer');
-        } else if (tab === 'add') {
-            router.push('/farmer/createPost');
-        } else if (tab === 'chart') {
-            router.replace('/farmer/dashboard');
-        } else if (tab === 'profile' || tab === 'notifications') {
-            return;
-        }
+    
+    const handleNavPress = (tab: 'home' | 'chart' | 'add' | 'notifications' | 'profile') => {
+        if (tab === 'home') router.replace('/farmer/homeFarmer');
+        else if (tab === 'add') router.push('/farmer/createPost');
+        else if (tab === 'chart') router.replace('/farmer/dashboard');
+        else if (tab === 'profile') router.push('/farmer/farmerProfile');
     };
 
     return (
         <SafeAreaView style={styles.safeArea}>
-
-            {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
-            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={24} color="#0056b3" />
-            </TouchableOpacity>
-
             <View style={styles.contentWrapper}>
-
                 <Text style={styles.pageTitle}>การแจ้งเตือน</Text>
 
-                <ScrollView contentContainerStyle={styles.scrollContent}>
-                    {saleNotificationList.map((item) => (
-                        <SaleNotificationCard
-                            key={item.id}
-                            {...item}
-                            onPressCall={() => handleCall(item.buyerPhone)}
-                            onPressCard={() => handleCardPress(item.id)}
-                        />
-                    ))}
-                    <View style={{ height: 20 }} />
-                </ScrollView>
+                {loading ? (
+                    <ActivityIndicator size="large" color="#0056b3" style={{marginTop: 20}}/>
+                ) : (
+                    <ScrollView 
+                        contentContainerStyle={styles.scrollContent}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchNotifications();}} />}
+                    >
+                        {notifications.length === 0 ? (
+                            <Text style={{textAlign:'center', color:'#999', marginTop:20}}>ไม่มีการแจ้งเตือน</Text>
+                        ) : (
+                            notifications.map((item) => (
+                                <TouchableOpacity
+                                    key={item.id}
+                                    style={[cardStyles.card, !item.is_read && { backgroundColor: '#e6f7ff' }]}
+                                    onPress={() => handleCardPress(item)}
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={cardStyles.indicator} />
+                                    <View style={cardStyles.content}>
+                                        <View style={cardStyles.headerRow}>
+                                            <Text style={cardStyles.statusText}>
+                                                {item.type === 'sale' ? '📦 ขายได้แล้ว!' : '🔔 แจ้งเตือน'}
+                                            </Text>
+                                            {item.OrderInfo?.Buyer?.phone && (
+                                                <TouchableOpacity onPress={() => handleCall(item.OrderInfo!.Buyer!.phone)}>
+                                                    <MaterialCommunityIcons name="phone" size={24} color="#28a745" />
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
 
-                {/* 5. Bottom Navbar */}
+                                        <Text style={cardStyles.messageLine} numberOfLines={2}>
+                                            {item.message}
+                                        </Text>
+                                        
+                                        <Text style={cardStyles.dateText}>
+                                            {new Date(item.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' })}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))
+                        )}
+                        <View style={{ height: 20 }} />
+                    </ScrollView>
+                )}
+
                 <NavbarFarmer
-                    onHomePress={() => handleNavPress('home')}
-                    onChartPress={() => handleNavPress('chart')}
-                    onAddPress={() => handleNavPress('add')}
-                    onNotificationsPress={() => handleNavPress('notifications')}
-                    onProfilePress={() => setActiveTab('profile')}
-                    activeTab={activeTab}
+                   activeTab="notifications"
+                   onHomePress={() => handleNavPress('home')}
+                   onChartPress={() => handleNavPress('chart')}
+                   onAddPress={() => handleNavPress('add')}
+                   onNotificationsPress={() => {}}
+                   onProfilePress={() => handleNavPress('profile')}
                 />
             </View>
         </SafeAreaView>
@@ -267,5 +236,11 @@ const cardStyles = StyleSheet.create({
         fontSize: 14,
         color: '#888',
         marginTop: 5,
+    },
+    dateText: { 
+        fontSize: 12, 
+        color: '#888', 
+        marginTop: 5, 
+        textAlign: 'right' 
     },
 });
