@@ -82,21 +82,38 @@ const HomeScreen: React.FC = () => {
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
     // --- ฟังก์ชันดึงข้อมูล (เหมือน index.tsx) ---
+    const formatListingsResponse = (payload: any): Listing[] => {
+        if (Array.isArray(payload)) return payload;
+        if (payload?.items && Array.isArray(payload.items)) return payload.items;
+        return [];
+    };
+
+    const handleFetchError = (error: any) => {
+        const status = error?.response?.status;
+        const backendMessage = error?.response?.data?.message;
+        const fallbackMessage = backendMessage || (status ? `เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (${status})` : 'ไม่สามารถดึงรายการสินค้าได้');
+        console.error('Failed to fetch listings:', {
+            status,
+            data: error?.response?.data,
+            message: error?.message
+        });
+        Alert.alert('ผิดพลาด', fallbackMessage);
+    };
+
     const fetchListings = useCallback(async () => {
         setIsFetching(true);
         try {
-            const params: any = { status: 'available' };
+            const params: { product_name?: string; status?: string } = { status: 'available' };
             
             if (typeValue && typeValue !== 'all') {
                 params.product_name = typeValue;
             }
-            // ถ้าจะใส่ logic distance เพิ่มภายหลัง ให้ใส่ตรงนี้
 
-            const response = await api.get('/listings/all', { params }); 
-            setListings(response.data);
+            const response = await api.get('/listings/public', { params });
+            setListings(formatListingsResponse(response.data));
             
         } catch (error: any) {
-            console.error("Failed to fetch listings:", error);
+            handleFetchError(error);
         } finally {
             setIsFetching(false);
         }

@@ -34,9 +34,10 @@ const chartConfig = {
     r: '4',
     strokeWidth: '2',
     stroke: '#0056b3',
+    paddingRight: 0,
+    paddingLeft: 0,
   },
-  paddingRight: 0,
-  paddingLeft: 0,
+  
 };
 
 const DashboardScreen = () => {

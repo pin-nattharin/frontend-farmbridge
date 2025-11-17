@@ -82,46 +82,56 @@ const HomeScreen: React.FC = () => {
     const IMAGE_BASE_URL = 'http://10.0.2.2:3000'; 
 
     // 🚨 [NEW FUNCTION] ดึงรายการสินค้าทั้งหมด (Public Route: /listings)
+    const formatListingsResponse = (payload: any): Listing[] => {
+        if (Array.isArray(payload)) return payload;
+        if (payload?.items && Array.isArray(payload.items)) return payload.items;
+        return [];
+    };
+
+    const handleFetchError = (error: any) => {
+        const status = error?.response?.status;
+        const backendMessage = error?.response?.data?.message;
+        const fallbackMessage = backendMessage || (status ? `เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (${status})` : 'ไม่สามารถดึงรายการสินค้าได้');
+        console.error('Failed to fetch public listings:', {
+            status,
+            data: error?.response?.data,
+            message: error?.message
+        });
+        Alert.alert('ผิดพลาด', fallbackMessage);
+    };
+
     const fetchListings = useCallback(async () => {
         setIsFetching(true);
         try {
-            const params: { product_name?: string, status?: string, distance?: string } = {
+            const params: { product_name?: string; status?: string } = {
                 status: 'available'
             };
-            
+
             if (typeValue && typeValue !== 'all') {
                 params.product_name = typeValue;
             }
-            const response = await api.get('/listings/all', { params }); 
-            let data: Listing[] = response.data;
+            const response = await api.get('/listings/public', { params });
+            let data: Listing[] = formatListingsResponse(response.data);
 
-            // 🚨 เพิ่มการส่ง distance 
             if (areaValue && areaValue !== 'all') {
-                const maxDistance = parseInt(areaValue);
-                data = data.filter(item => {
-                    // กรองเฉพาะที่มี distance_km และน้อยกว่าระยะที่กำหนด
-                    return item.distance_km !== null && item.distance_km <= maxDistance;
-                });
+                const maxDistance = parseInt(areaValue, 10);
+                data = data.filter(item => item.distance_km !== null && item.distance_km <= maxDistance);
             }
 
             if (priceValue && priceValue !== 'all') {
                 if (priceValue === 'price_asc') {
-                    // เรียงจากน้อยไปมาก
-                    data.sort((a, b) => a.price_per_unit - b.price_per_unit);
+                    data = [...data].sort((a, b) => a.price_per_unit - b.price_per_unit);
                 } else if (priceValue === 'price_desc') {
-                    // เรียงจากมากไปน้อย
-                    data.sort((a, b) => b.price_per_unit - a.price_per_unit);
+                    data = [...data].sort((a, b) => b.price_per_unit - a.price_per_unit);
                 }
             }
             setListings(data);
-            
         } catch (error: any) {
-            console.error("Failed to fetch public listings:", error);
-            Alert.alert('ผิดพลาด', error.response?.data?.message || 'ไม่สามารถดึงรายการสินค้าได้');
+            handleFetchError(error);
         } finally {
             setIsFetching(false);
         }
-    }, [typeValue, areaValue, priceValue]); // เพิ่ม dependencies ให้ครบ
+    }, [typeValue, areaValue, priceValue]);
 
     useEffect(() => {
         fetchListings();

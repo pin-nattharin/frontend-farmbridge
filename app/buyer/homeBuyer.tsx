@@ -82,40 +82,52 @@ const HomeScreen: React.FC = () => {
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
     // --- ฟังก์ชันดึงข้อมูล (เหมือน index.tsx) ---
+    const formatListingsResponse = (payload: any): Listing[] => {
+        if (Array.isArray(payload)) return payload;
+        if (payload?.items && Array.isArray(payload.items)) return payload.items;
+        return [];
+    };
+
+    const handleFetchError = (error: any) => {
+        const status = error?.response?.status;
+        const backendMessage = error?.response?.data?.message;
+        const fallbackMessage = backendMessage || (status ? `เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (${status})` : 'ไม่สามารถดึงรายการสินค้าได้');
+        console.error('Failed to fetch listings:', {
+            status,
+            data: error?.response?.data,
+            message: error?.message
+        });
+        Alert.alert('ผิดพลาด', fallbackMessage);
+    };
+
     const fetchListings = useCallback(async () => {
         setIsFetching(true);
         try {
-            const params: any = { status: 'available' };
+            const params: { product_name?: string; status?: string } = { status: 'available' };
             
             if (typeValue && typeValue !== 'all') {
                 params.product_name = typeValue;
             }
-            // ถ้าจะใส่ logic distance เพิ่มภายหลัง ให้ใส่ตรงนี้
 
-            const response = await api.get('/listings/all', { params }); 
-            let data: Listing[] = response.data;
+            const response = await api.get('/listings/public', { params });
+            let data: Listing[] = formatListingsResponse(response.data);
 
             if (areaValue && areaValue !== 'all') {
-                const maxDistance = parseInt(areaValue);
-                data = data.filter(item => {
-                    // ถ้า distance_km เป็น null ให้ถือว่าผ่าน หรือไม่ผ่านแล้วแต่ Policy (ที่นี่ให้ไม่ผ่าน)
-                    return item.distance_km !== null && item.distance_km <= maxDistance;
-                });
+                const maxDistance = parseInt(areaValue, 10);
+                data = data.filter(item => item.distance_km !== null && item.distance_km <= maxDistance);
             }
 
             if (priceValue && priceValue !== 'all') {
                 if (priceValue === 'price_asc') {
-                    // น้อยไปมาก
-                    data.sort((a, b) => a.price_per_unit - b.price_per_unit);
+                    data = [...data].sort((a, b) => a.price_per_unit - b.price_per_unit);
                 } else if (priceValue === 'price_desc') {
-                    // มากไปน้อย
-                    data.sort((a, b) => b.price_per_unit - a.price_per_unit);
+                    data = [...data].sort((a, b) => b.price_per_unit - a.price_per_unit);
                 }
             }
             setListings(data);
             
         } catch (error: any) {
-            console.error("Failed to fetch listings:", error);
+            handleFetchError(error);
         } finally {
             setIsFetching(false);
         }
