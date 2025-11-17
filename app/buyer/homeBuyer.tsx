@@ -109,7 +109,7 @@ const HomeScreen: React.FC = () => {
                 params.product_name = typeValue;
             }
 
-            const response = await api.get('/listings/public', { params });
+            const response = await api.get('/listings', { params });
             let data: Listing[] = formatListingsResponse(response.data);
 
             if (areaValue && areaValue !== 'all') {

@@ -8,7 +8,7 @@ import { LineChart } from 'react-native-chart-kit';
 import api from '../services/api'; 
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
-import BuyerNavbar from '../components/ui/BuyerNavbar'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ----------------------------------------------------
 // DUMMY DATA และ Constants
@@ -125,10 +125,30 @@ export default function ProductDetailScreen() {
         }
     }, [id]);
 
-    const handleBuy = () => {
+    const handleBuy = async () => {
         if (!listing) return;
 
-        // เตรียมรูปภาพ (ถ้ามี)
+        // 1. ตรวจสอบ Token ในเครื่อง
+        const token = await AsyncStorage.getItem('userToken');
+        console.log("Current Token:", token);
+        
+        if (!token) {
+            // 2. ถ้าไม่มี Token ให้แจ้งเตือนและไปหน้า Login
+            Alert.alert(
+                "กรุณาเข้าสู่ระบบ",
+                "คุณต้องเข้าสู่ระบบก่อนจึงจะสามารถสั่งซื้อสินค้าได้",
+                [
+                    { text: "ยกเลิก", style: "cancel" },
+                    { 
+                        text: "เข้าสู่ระบบ", 
+                        onPress: () => router.push('/LoginScreen') 
+                    }
+                ]
+            );
+            return;
+        }
+
+        // 3. ถ้ามี Token (Login แล้ว) ให้ไปหน้าชำระเงินตามปกติ
         const imagePath = listing.image_url?.[0];
         let fullImageUrl = '';
         if (imagePath) {
