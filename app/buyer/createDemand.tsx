@@ -9,6 +9,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Platform,
+  KeyboardAvoidingView
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 
@@ -25,12 +27,12 @@ const CreateDemandScreen = () => {
   const { token, isLoading: authLoading } = useAuth(); 
 
   // --- 1. States for Form Data ---
-  const [productName, setProductName] = useState<string | null>(null);
-  const [quantity, setQuantity] = useState('');
-  const [price, setPrice] = useState(''); 
+  const [product_name, setProduct_Name] = useState<string | null>(null);
+  const [quantity_total, setQuantity_Total] = useState('');
+  const [price_per_unit, setPrice_Per_Unit] = useState(''); 
 
   // --- 2. States for UI (Dropdown) ---
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // ใช้ open สำหรับ Dropdown เดียว
   const [items, setItems] = useState<Array<{ label: string; value: string }>>([]);
   const [productsLoading, setProductsLoading] = useState(false); 
   
@@ -38,36 +40,56 @@ const CreateDemandScreen = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- ดึงข้อมูลสินค้าสำหรับ Dropdown ---
-  useEffect(() => {
-    const fetchProductOptions = async () => {
-      // ⚠️ รอให้ Token พร้อม และ AuthContext ไม่ได้อยู่ในสถานะโหลด
-      if (!token || authLoading) return;
+  // --- ดึงข้อมูลสินค้าสำหรับ Dropdown ---
+useEffect(() => {
+  // 1. เช็คว่า useEffect ทำงานหรือไม่
+  console.log("🟢 1. useEffect Triggered"); 
+  console.log("   - Token:", token ? "มี Token" : "ไม่มี Token");
+  console.log("   - AuthLoading:", authLoading);
 
-      setProductsLoading(true);
-      try {
-        // [แก้ไข] ใช้ api.get() แทน fetch()
-        const response = await api.get(`/demands/products`); // Axios จะจัดการ Token Header ให้เอง
+  const fetchProductOptions = async () => {
+    // 2. เช็คเงื่อนไขก่อน Return
+    if (!token || authLoading) {
+      console.log("🔴 2. ติดเงื่อนไข Token หรือ Loading -> จบการทำงาน");
+      return;
+    }
 
-        const productList: string[] = response.data; // Axios แปลง JSON ให้แล้ว
+    console.log("🟡 3. กำลังเริ่มยิง API...");
+    setProductsLoading(true);
+    
+    try {
+      // ลองใส่ URL เต็มๆ เพื่อเช็คว่าไม่ได้ผิดที่ BaseURL (ถ้าจำเป็น)
+      const response = await api.get(`/demands/products`); 
+      
+      console.log("🟢 4. API Response Success:", response.data); // <--- ข้อมูลต้องโผล่ตรงนี้
 
-        // แปลงข้อมูล dropdownItems
-        const dropdownItems = productList.map(product => ({
-          label: product,
-          value: product,
-        }));
-        setItems(dropdownItems);
+      const productList: string[] = response.data;
+      const dropdownItems = productList.map(product => ({
+        label: product,
+        value: product,
+      }));
 
-      } catch (error: any) {
-        console.error('Fetch Product Options Failed:', error);
-        // แสดงข้อความ Error จาก Axios
-        Alert.alert('ผิดพลาด', error.response?.data?.message || 'ไม่สามารถดึงข้อมูลสินค้าได้');
-      } finally {
-        setProductsLoading(false);
-      }
-    };
+      const fixedItems = [
+      { label: 'ทุเรียน', value: 'ทุเรียน' },
+      { label: 'มะม่วง', value: 'มะม่วง' },
+      { label: 'องุ่น', value: 'องุ่น' },
+      { label: 'มังคุด', value: 'มังคุด' },
+    ];
 
-    fetchProductOptions();
-  }, [token, authLoading]); // ทำงานเมื่อ Token และ AuthContext พร้อมใช้งาน
+    setItems(fixedItems);
+    setProductsLoading(false);
+
+    } catch (error: any) {
+      console.error("🔴 5. API Error:", error); // <--- ถ้า Error จะโผล่ตรงนี้
+      Alert.alert('ผิดพลาด', error.response?.data?.message || 'ไม่สามารถดึงข้อมูลสินค้าได้');
+    } finally {
+      setProductsLoading(false);
+      console.log("⚪ 6. Finished Loading");
+    }
+  };
+
+  fetchProductOptions();
+}, [token, authLoading]);
 
   // --- 3. ฟังก์ชันสำหรับปุ่ม ---
   const handleCancel = () => {
@@ -78,7 +100,7 @@ const CreateDemandScreen = () => {
 
   const handleConfirm = async () => {
     // --- 4. ตรวจสอบข้อมูล ---
-    if (!productName || !quantity) {
+    if (!product_name || !quantity_total) {
       Alert.alert('ข้อมูลไม่ครบ', 'กรุณาเลือกสินค้าและระบุจำนวน');
       return;
     }
@@ -86,32 +108,22 @@ const CreateDemandScreen = () => {
     if (isSubmitting || !token) return; // ป้องกันการกดย้ำ & ต้องมี Token
     setIsSubmitting(true); 
 
-    console.log('Sending Demand:', {
-      product_name: productName,
-      desired_quantity: quantity,
-      desired_price: price,
-      unit: 'kg',
-    });
-
     try {
-      // [แก้ไข] ใช้ api.post() แทน fetch()
-      const response = await api.post(`/demands`, { 
-        product_name: productName,
-        desired_quantity: parseFloat(quantity),
-        desired_price: price ? parseFloat(price) : null,
-        unit: 'kg', 
+      await api.post(`/demands`, { 
+        product_name: product_name,
+        desired_quantity: parseFloat(quantity_total),
+        desired_price: price_per_unit ? parseFloat(price_per_unit) : null,
+        unit: 'กก.', 
       });
 
-      // ถ้า Axios ไม่โยน Error แสดงว่า response.status อยู่ใน 2xx
       Alert.alert('ส่งสำเร็จ', 'คำขอของคุณถูกบันทึกแล้ว');
       router.back();
 
-    } catch (error: any) { 
+      } catch (error: any) { 
       console.error('Create Demand Failed:', error);
-      // [แก้ไข] ใช้โครงสร้างการรับ Error จาก Axios
       Alert.alert(
         'เกิดข้อผิดพลาด', 
-        error.response?.data?.message || error.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ (โปรดเช็ค IP ใน services/api.js)'
+        error.response?.data?.message || error.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้'
       );
     } finally {
       setIsSubmitting(false);
@@ -120,44 +132,46 @@ const CreateDemandScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ title: 'สร้างความต้องการ' }} />
+      <Stack.Screen options={{ title: '' }} />
 
       <ScrollView contentContainerStyle={styles.container}>
+
+        {/* Header Title แบบ Custom ตาม Design */}
+          <View style={styles.headerContainer}>
+            <Text style={styles.mainTitle}>ความต้องการ</Text>
+          </View>
+
         <View style={styles.card}>
           {/* --- 1. สินค้า (Dropdown) --- */}
           <Text style={styles.label}>สินค้า</Text>
+          <View style={{ zIndex: 2000 }}>
           <CustomDropdown
             open={open}
             setOpen={setOpen}
-            value={productName}
+            value={product_name}
             items={items}
-            setValue={setProductName}
+            setValue={setProduct_Name}
             setItems={setItems}
             placeholder="เลือกสินค้าที่ต้องการ"
-            containerStyle={{ zIndex: 1000, marginVertical: 8 }}
+            style={styles.dropdownStyle} 
+            dropDownContainerStyle={styles.dropdownContainerStyle}
             loading={productsLoading}
             disabled={isSubmitting}
-            listMode="MODAL"
+            // 🔴 แก้ตรงนี้: เปลี่ยนจาก SCROLLVIEW เป็น MODAL
+            listMode="MODAL" 
+            // (Optional) ปรับแต่งหัวข้อ Modal ได้
+            modalTitle="เลือกสินค้า"
+            modalAnimationType="slide"
           />
+          </View>
 
           {/* --- 2. จำนวน (TextInput) --- */}
           <Text style={styles.label}>จำนวน (กิโลกรัม)</Text>
           <TextInput
             style={styles.inputBox}
             placeholder="ระบุจำนวนที่ต้องการ (กก.)"
-            value={quantity}
-            onChangeText={setQuantity}
-            keyboardType="numeric"
-            editable={!isSubmitting}
-          />
-          
-          {/* --- 3. ราคา (TextInput) --- */}
-          <Text style={styles.label}>ราคาที่ต้องการ (บาท / กก.)</Text>
-          <TextInput
-            style={styles.inputBox}
-            placeholder="ระบุราคาที่ต้องการ (ไม่บังคับ)"
-            value={price}
-            onChangeText={setPrice}
+            value={quantity_total}
+            onChangeText={setQuantity_Total}
             keyboardType="numeric"
             editable={!isSubmitting}
           />
@@ -196,6 +210,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f4f4f4',
   },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    justifyContent: 'center', // จัดให้อยู่กลางในแนวตั้ง
+    paddingBottom: 40,
+  },
   container: {
     flexGrow: 1,
     padding: 16,
@@ -203,30 +223,50 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 24, // ความโค้งมนของ Card
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    // Shadow
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  headerContainer: {
+    marginBottom: 30,
+    marginTop: 60, // เผื่อพื้นที่ให้ Back Button ด้านบน
+    alignItems: 'center',
+  },
+  mainTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#0047AB', // สีน้ำเงินเข้ม (Cobalt Blue) ให้เหมือนรูป
   },
   label: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: 'bold',
     color: '#333',
-    marginTop: 10,
-    marginBottom: 4,
+    marginTop: 12,
+    marginBottom: 8,
   },
   inputBox: {
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingVertical: 12,
+    backgroundColor: '#EFF6FF', // สีฟ้าอ่อนจางๆ (Alice Blue / Light Blue)
+    borderRadius: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     fontSize: 16,
-    marginVertical: 8,
+    color: '#333',
+    marginBottom: 10,
+  },
+  dropdownStyle: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    borderWidth: 0, // ลบขอบออกเพื่อให้เหมือน Input
+  },
+  dropdownContainerStyle: {
+    backgroundColor: '#fff',
+    borderColor: '#eee',
   },
   buttonRow: {
     flexDirection: 'row',

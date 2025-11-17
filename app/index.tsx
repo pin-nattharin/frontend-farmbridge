@@ -28,7 +28,7 @@ interface Listing {
 
 // 1. ข้อมูลสำหรับ Dropdown
 const typeItems = [
-    { label: 'ทุกประเภท', value: 'ทั้งหมด' },
+    { label: 'ทุกประเภท', value: 'all' },
     { label: 'ทุเรียน', value: 'ทุเรียน' },
     { label: 'มะม่วง', value: 'มะม่วง' },
     { label: 'องุ่น', value: 'องุ่น' },
@@ -36,7 +36,7 @@ const typeItems = [
 ];
 
 const areaItems = [
-    { label: 'ทุกพื้นที่', value: 'ทุกพื้นที่' },
+    { label: 'ทุกพื้นที่', value: 'all' },
     { label: '5 กม.', value: '5' },     
     { label: '20 กม.', value: '20' },    
     { label: '30 กม.', value: '30' },
@@ -44,9 +44,9 @@ const areaItems = [
 ];
 
 const priceItems = [
-    { label: 'ราคา', value: 'ราคาทั้งหมด' },
-    { label: 'ต่ำ-สูง', value: 'ต่ำ-สูง' },
-    { label: 'สูง-ต่ำ', value: 'สูง-ต่ำ' },
+    { label: 'ราคา', value: 'all' },
+    { label: 'ต่ำ-สูง', value: 'price_asc' },
+    { label: 'สูง-ต่ำ', value: 'price_desc' },
 ];
 
 
@@ -77,7 +77,9 @@ const HomeScreen: React.FC = () => {
     const [priceValue, setPriceValue] = useState<string | null>('all');
     const [priceItemsState, setPriceItemsState] = useState(priceItems);
 
-    const [distanceOpen, setDistanceOpen] = useState(false); 
+    const [distanceOpen, setDistanceOpen] = useState(false);
+
+    const IMAGE_BASE_URL = 'http://10.0.2.2:3000'; 
 
     // 🚨 [NEW FUNCTION] ดึงรายการสินค้าทั้งหมด (Public Route: /listings)
     const fetchListings = useCallback(async () => {
@@ -90,25 +92,36 @@ const HomeScreen: React.FC = () => {
             if (typeValue && typeValue !== 'all') {
                 params.product_name = typeValue;
             }
-            // 🚨 เพิ่มการส่ง distance (ถ้ามีการล็อกอินและเลือก Filter)
-            if (areaValue && areaValue !== 'all' && token) {
-                params.distance = areaValue;
+            const response = await api.get('/listings/all', { params }); 
+            let data: Listing[] = response.data;
+
+            // 🚨 เพิ่มการส่ง distance 
+            if (areaValue && areaValue !== 'all') {
+                const maxDistance = parseInt(areaValue);
+                data = data.filter(item => {
+                    // กรองเฉพาะที่มี distance_km และน้อยกว่าระยะที่กำหนด
+                    return item.distance_km !== null && item.distance_km <= maxDistance;
+                });
             }
 
-            // 🚨 [API CALL] เรียก /listings/all
-            const response = await api.get('/listings/all', { params }); 
-
-            const data: Listing[] = response.data;
+            if (priceValue && priceValue !== 'all') {
+                if (priceValue === 'price_asc') {
+                    // เรียงจากน้อยไปมาก
+                    data.sort((a, b) => a.price_per_unit - b.price_per_unit);
+                } else if (priceValue === 'price_desc') {
+                    // เรียงจากมากไปน้อย
+                    data.sort((a, b) => b.price_per_unit - a.price_per_unit);
+                }
+            }
             setListings(data);
             
         } catch (error: any) {
             console.error("Failed to fetch public listings:", error);
-            // Error 404 จะหายไป แต่ถ้ามี Error อื่นจะแสดงที่นี่
             Alert.alert('ผิดพลาด', error.response?.data?.message || 'ไม่สามารถดึงรายการสินค้าได้');
         } finally {
             setIsFetching(false);
         }
-    }, [typeValue]); // 🚨 เพิ่ม areaValue และ token
+    }, [typeValue, areaValue, priceValue]); // เพิ่ม dependencies ให้ครบ
 
     useEffect(() => {
         fetchListings();
@@ -128,7 +141,7 @@ const HomeScreen: React.FC = () => {
     // ฟังก์ชันทดสอบการกด Product Card
     const handleProductPress = (listingId: string) => {
         router.push({
-            pathname: './ProductDetail',
+            pathname: './productDetail',
             params: { id: listingId }
         });
     };
@@ -160,8 +173,6 @@ const HomeScreen: React.FC = () => {
              router.push('/LoginScreen');;
         }
     };
-
-    const IMAGE_BASE_URL = 'http://10.0.2.2:3000';
 
 
     return (
@@ -247,9 +258,18 @@ const HomeScreen: React.FC = () => {
                         data={listings}
                         keyExtractor={item => item.id}
                         renderItem={({ item }) => {
-                            const imagePath = item.image_url ? item.image_url[0] : null;
-                                const fullImageUrl = imagePath ? `${IMAGE_BASE_URL}${imagePath}`
-                                : 'https://via.placeholder.com/300';
+                            const imagePath = (item.image_url && item.image_url.length > 0) ? item.image_url[0] : null;
+                            let fullImageUrl = 'https://via.placeholder.com/300';
+
+                            if (imagePath) {
+                                if (imagePath.startsWith('http') || imagePath.startsWith('https')) {
+                                    // เป็น URL เต็มแล้ว ใช้ได้เลย
+                                    fullImageUrl = imagePath;
+                                } else {
+                                    // เป็น Path ย่อ ต้องต่อ Base URL
+                                    fullImageUrl = `${IMAGE_BASE_URL}${imagePath}`;
+                                }
+                            }
 
                                 return ( 
                                 <ProductCard

@@ -11,7 +11,7 @@ interface AuthContextType {
   token: string | null;
   user: any | null;
   isLoading: boolean;
-  login: (token: string) => Promise<void>;
+  login: (token: string, userData: any) => Promise<void>; 
   logout: () => Promise<void>;
 }
 
@@ -42,10 +42,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const loadToken = async () => {
       try {
-        const storedToken = await AsyncStorage.getItem('userToken'); // ดึง Token ที่เคยเก็บไว้
+        setIsLoading(true);
+        // ✅ ใช้ชื่อ 'userToken' ให้เหมือนกันทุกที่
+        const storedToken = await AsyncStorage.getItem('userToken'); 
+        const storedUser = await AsyncStorage.getItem('userData');
         if (storedToken) {
           setToken(storedToken);
           setAuthToken(storedToken);
+
+          if (storedUser) {
+             setUser(JSON.parse(storedUser));
+          }
           
           // (ถ้าคุณมี API สำหรับดึงข้อมูล user ก็ควรยิงตรงนี้)
           // เช่น api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
@@ -84,11 +91,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [token, isLoading, segments, router]); */
 
   // 6. ฟังก์ชัน Login
-  const login = async (newToken: string) => {
+  const login = async (newToken: string, newUser: any) => {
     try {
-      await AsyncStorage.setItem('userToken', newToken); // เก็บ Token ลงเครื่อง
       setToken(newToken); // อัปเดต Token ใน state
+      setUser(newUser);
+
       setAuthToken(newToken);
+
+      await AsyncStorage.setItem('userToken', newToken);
+      await AsyncStorage.setItem('userData', JSON.stringify(newUser));
       
       // (ถ้าคุณใช้ axios)
       // api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
@@ -103,10 +114,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // 7. ฟังก์ชัน Logout
   const logout = async () => {
     try {
-      await api.post('/auth/logout');
+      try { await api.post('/auth/logout'); } catch(err) {}
 
-      await AsyncStorage.removeItem('userToken'); // ลบ Token ออกจากเครื่อง
-      setToken(null); // อัปเดต Token ใน state
+      // ✅ ล้างค่าทั้งหมด
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userData');
+      
+      setToken(null);
       setUser(null);
       setAuthToken(null);
       
@@ -117,10 +131,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       router.replace('/LoginScreen'); // (แก้ path นี้ให้ถูก)
     } catch (e) {
       console.error("Failed to remove token", e);
-      await AsyncStorage.removeItem('userToken');
-      setToken(null);
-      setAuthToken(null);
-      router.replace('/LoginScreen');
     }
   };
 

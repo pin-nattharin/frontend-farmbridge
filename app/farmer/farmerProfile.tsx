@@ -103,7 +103,7 @@ const FarmerProfileScreen = () => {
         } else if (tab === 'add') {
             router.push('/farmer/createPost'); 
         } else if (tab === 'notifications') {
-            // router.push('/notifications'); 
+             router.push('/farmer/notification'); 
         } else if (tab === 'profile') {
             // อยู่หน้าเดิม
         }
