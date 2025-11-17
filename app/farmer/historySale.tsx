@@ -121,9 +121,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#074E9F',
-    marginTop: 50,
-    marginBottom: 50,
-    marginLeft: 110,
+    marginTop: 70,
+    marginBottom: 20,
+    marginLeft: 100,
   },
   center: {
     flex: 1,

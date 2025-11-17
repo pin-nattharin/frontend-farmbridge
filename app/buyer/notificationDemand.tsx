@@ -76,6 +76,11 @@ export default function NotificationScreen() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<ActiveTab>('notify'); 
 
+    // 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
+    const handleBack = () => {
+        router.back();
+    };
+    
     // 🆕 แก้ไข: นำทางไปยังหน้า productdetail พร้อมส่ง ID
     const handleCardPress = (item: typeof notificationList[0]) => {
         // ใช้ router.push เพื่อนำทางไปยัง /productdetail?id={item.id}
@@ -93,13 +98,12 @@ export default function NotificationScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <Stack.Screen 
-                options={{ 
-                    headerShown: true, 
-                    title: 'การแจ้งเตือน',
-                }} 
-            />
-            
+        
+        {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
+                        </TouchableOpacity>
+                        
             <View style={styles.contentWrapper}>
                 
                 {/* Custom Title (อยู่ใต้ Stack Header) */}
@@ -147,6 +151,14 @@ const styles = StyleSheet.create({
     contentWrapper: {
         flex: 1,
     },
+    //  Style สำหรับปุ่มย้อนกลับ
+    backButton: {
+        position: 'absolute', // ทำให้ปุ่มลอย
+        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        left: 15,
+        zIndex: 10, // ให้อยู่ด้านบนสุด
+        padding: 5,
+    },
     // 🆕 Style สำหรับ Stack Header Title
     stackHeaderTitle: {
         fontWeight: 'bold',
@@ -158,8 +170,8 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#0056b3',
         marginHorizontal: 16,
-        marginTop: 15,
-        marginBottom: 10,
+        marginTop: 70,
+        marginBottom: 20,
         textAlign: 'center', // จัดให้อยู่ตรงกลางตามภาพตัวอย่าง
     },
     scrollContent: {
@@ -167,7 +179,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingBottom: 80, // เว้นที่ว่างให้ Navbar
     },
-    // ลบ headerContainer, headerTitle
 });
 
 
