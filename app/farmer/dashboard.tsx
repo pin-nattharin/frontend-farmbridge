@@ -11,7 +11,7 @@ import {
   RefreshControl
 } from 'react-native';
 
-import { useRouter } from 'expo-router'; // <-- 1. Import useRouter
+import { useRouter } from 'expo-router'; 
 import FarmerNavbar from '../../components/ui/FarmerNavbar';
 import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
@@ -165,18 +165,16 @@ const DashboardScreen = () => {
 
   // --- 2. เพิ่มฟังก์ชันสำหรับ Navbar ---
   const handleNavHome = () => {
-    router.push('/farmer/homeFarmer'); // (แก้ Path ให้ถูก)
+    router.push('/farmer/homeFarmer'); 
   };
   const handleNavChart = () => {
+    // อยู่หน้า Chart อยู่แล้ว ไม่ต้องทำอะไร
   };
   const handleNavAdd = () => {
-    router.push('/farmer/createPost'); // (แก้ Path ให้ถูก)
+    router.push('/farmer/createPost'); 
   };
   const handleNavNotifications = () => {
-    router.push('/farmer/notification'); // (แก้ Path ให้ถูก)
-  };
-  const handleNavProfile = () => {
-    router.push('/farmer/farmerProfile'); // (แก้ Path ให้ถูก)
+    router.push('/farmer/notification'); 
   };
 
   if (authLoading || (isLoading && !refreshing)) {
@@ -193,11 +191,10 @@ const DashboardScreen = () => {
     <SafeAreaView style={styles.safeArea}>
 
       {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
-                        </TouchableOpacity>
+      <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#0056b3" />
+      </TouchableOpacity>
 
-      <ScrollView style={styles.container}>
       <ScrollView 
         style={styles.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -212,55 +209,6 @@ const DashboardScreen = () => {
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
-{/* 
-        {globalStats && (
-          <View style={styles.globalStatsCard}>
-            <Text style={styles.globalStatsTitle}>ภาพรวมระบบ</Text>
-            <View style={styles.globalStatRow}>
-              <Text style={styles.globalStatLabel}>ยอดขายรวม</Text>
-              <Text style={styles.globalStatValue}>
-                {globalStats.metrics.total_sales_value.toLocaleString()} บาท
-              </Text>
-            </View>
-            <View style={styles.globalStatRow}>
-              <Text style={styles.globalStatLabel}>รายการขายสำเร็จ</Text>
-              <Text style={styles.globalStatValue}>
-                {globalStats.metrics.total_transactions.toLocaleString()} รายการ
-              </Text>
-            </View>
-            <View style={styles.globalStatRow}>
-              <Text style={styles.globalStatLabel}>ราคาเฉลี่ย</Text>
-              <Text style={styles.globalStatValue}>
-                {globalStats.metrics.average_price.toLocaleString()} บาท/กก.
-              </Text>
-            </View>
-            <View style={styles.globalStatRow}>
-              <Text style={styles.globalStatLabel}>ของเสียลดลง</Text>
-              <Text style={styles.globalStatValue}>
-                {globalStats.metrics.waste_reduced_kg.toLocaleString()} กก.
-              </Text>
-            </View>
-            <View style={styles.globalStatDivider} />
-            <View style={styles.globalStatRow}>
-              <Text style={styles.globalStatLabel}>สินค้าพร้อมขาย</Text>
-              <Text style={styles.globalStatValue}>
-                {globalStats.totals.activeListings.toLocaleString()} รายการ
-              </Text>
-            </View>
-            <View style={styles.globalStatRow}>
-              <Text style={styles.globalStatLabel}>เกษตรกรในระบบ</Text>
-              <Text style={styles.globalStatValue}>
-                {globalStats.totals.totalFarmers.toLocaleString()} ราย
-              </Text>
-            </View>
-            <View style={styles.globalStatRow}>
-              <Text style={styles.globalStatLabel}>ผู้ซื้อในระบบ</Text>
-              <Text style={styles.globalStatValue}>
-                {globalStats.totals.totalBuyers.toLocaleString()} ราย
-              </Text>
-            </View>
-          </View>
-        )} */}
 
         {/* --- Metrics Cards --- */}
         <View style={styles.metricsRow}>
@@ -294,7 +242,7 @@ const DashboardScreen = () => {
 
         {/* --- Chart Section --- */}
         <View style={styles.chartSection}>
-          {/* --- Dropdown (คงเดิม) --- */}
+          {/* --- Dropdown --- */}
           <View style={styles.chartDropdownWrapper}>
             <TouchableOpacity
               style={styles.chartDropdownButton}
@@ -329,7 +277,7 @@ const DashboardScreen = () => {
             )}
           </View>
 
-          {/* --- 5. แทนที่ Placeholder ด้วย LineChart --- */}
+          {/* --- LineChart --- */}
           <View style={styles.chartContainer}>
             {currentChartData.datasets[0].data.length > 0 && currentChartData.labels.length > 0 ? (
                <LineChart
@@ -339,7 +287,6 @@ const DashboardScreen = () => {
                chartConfig={chartConfig}
                bezier
                style={styles.chart}
-               // ป้องกัน error ถ้า data เป็น NaN
                fromZero
              />
             ) : (
@@ -352,29 +299,27 @@ const DashboardScreen = () => {
         </View>
       </ScrollView>
 
-      {/* --- Navbar (คงเดิม) --- */}
+      {/* --- Navbar --- */}
       <FarmerNavbar
         activeTab="chart"
         onHomePress={handleNavHome}
         onChartPress={handleNavChart}
         onAddPress={handleNavAdd}
         onNotificationsPress={handleNavNotifications}
-        onProfilePress={handleNavProfile}
       />
     </SafeAreaView>
   );
 };
 
-// --- 6. Stylesheet (แก้ไข chartPlaceholder) ---
+// --- Stylesheet ---
 const styles = StyleSheet.create({
   backButton: {
-        position: 'absolute', // ทำให้ปุ่มลอย
-        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        position: 'absolute',
+        top: 50, 
         left: 15,
-        zIndex: 10, // ให้อยู่ด้านบนสุด
+        zIndex: 10, 
         padding: 5,
     },
-  // (Styles อื่นๆ คงเดิม)
   safeArea: {
     flex: 1,
     backgroundColor: '#f8f9fa',
@@ -388,61 +333,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 40,
     paddingBottom: 20,
-    paddingLeft: 130,
+    justifyContent: 'center', 
   },
   title: {
     fontSize: 24,
-        fontWeight: 'bold',
-        color: '#0056b3',
-        marginHorizontal: 16,
-        marginTop: 60,
-        marginBottom: 20,
-        textAlign: 'center', 
-        paddingLeft: 120,
+    fontWeight: 'bold',
+    color: '#0056b3',
+    marginTop: 20, 
+    textAlign: 'center', 
   },
   metricsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     marginTop: 16,
-  },
-  globalStatsCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  globalStatsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#0056b3',
-    marginBottom: 12,
-  },
-  globalStatRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  globalStatLabel: {
-    fontSize: 14,
-    color: '#555',
-  },
-  globalStatValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#003d80',
-  },
-  globalStatDivider: {
-    height: 1,
-    backgroundColor: '#e5e5e5',
-    marginVertical: 10,
   },
   metricCard: {
     width: '48%',
@@ -521,7 +425,6 @@ const styles = StyleSheet.create({
     padding: 16,
     marginTop: 12,
   },
-  // --- สไตล์สำหรับ Dropdown (คงเดิม) ---
   chartDropdownWrapper: {
     position: 'relative',
     alignSelf: 'flex-start',
@@ -566,16 +469,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: 'bold',
   },
-  // --- จบสไตล์ Dropdown ---
-
-  // --- 7. แก้ไข Style กราฟ (คัดลอกจาก productDetail.tsx) ---
   chartContainer: {
-    overflow: 'hidden', // <-- เพิ่ม/แก้ไข
+    overflow: 'hidden', 
     height: 220,
     backgroundColor: '#ffffff',
     borderRadius: 12,
     marginTop: 12,
-    // ลบ justifyContent, alignItems ออก
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -583,7 +482,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   chart: {
-    borderRadius: 16, // <-- เพิ่ม
+    borderRadius: 16, 
   },
   loadingWrapper: {
     flex: 1,
@@ -591,7 +490,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f8f9fa',
   },
-  // (ลบ chartPlaceholderText)
 });
 
 export default DashboardScreen;

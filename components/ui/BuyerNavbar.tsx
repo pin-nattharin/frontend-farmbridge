@@ -2,6 +2,7 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, SafeAreaView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 // กำหนด Type สำหรับ Active Tab ใหม่ (รวม 5 ปุ่ม)
 type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
@@ -11,7 +12,7 @@ interface BottomNavbarProps {
     onListPress: () => void;   // 🆕 สำหรับไอคอน Clipboard
     onAddPress: () => void;
     onNotifyPress: () => void; // 🆕 สำหรับไอคอน Bell
-    onProfilePress: () => void;
+    onProfilePress?: () => void;
     activeTab: ActiveTab;
 }
 
@@ -23,6 +24,7 @@ const BuyerNavbar: React.FC<BottomNavbarProps> = ({
     onProfilePress,
     activeTab,
 }) => {
+    const router = useRouter();
 
     // ฟังก์ชันช่วยในการกำหนดสีไอคอน (สีเทาอ่อน/สีหลัก)
     const getIconColor = (tabName: ActiveTab) => {
@@ -97,7 +99,10 @@ const BuyerNavbar: React.FC<BottomNavbarProps> = ({
                 {/* 5. Profile Button */}
                 <TouchableOpacity
                     style={styles.navButton}
-                    onPress={onProfilePress}
+                    onPress={() => {
+                        router.push('/buyer/buyerProfile');
+                        onProfilePress?.();
+                    }}
                     accessibilityLabel="Profile"
                 >
                     <Ionicons

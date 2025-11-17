@@ -29,7 +29,7 @@ function LoginScreen() {
     setLoading(true);
     try {
       // 5. ยิง API (Backend ของคุณ auto-detect role)
-      const response = await api.post('/api/auth/login', {
+      const response = await api.post('/auth/login', {
         email: email.toLowerCase(),
         password: password
       });

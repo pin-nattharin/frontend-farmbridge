@@ -112,14 +112,16 @@ const RegisterBuyerScreen: React.FC = () => {
     setLoading(true);
     try {
       // 7. ยิง API (Backend จะรู้ว่าเป็น Buyer เพราะไม่มี farmer_doc_url)
-      const response = await api.post('/api/auth/register', {
-        fullname: fullname,
-        email: email.toLowerCase(),
-        password: password,
-        phone: phone,
-        address: address
+      const payload = {
+        fullname: fullname.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        phone: phone.trim(),
+        address: address.trim()
         // ไม่ต้องส่ง farmer_doc_url
-      });
+      };
+
+      const response = await api.post('/auth/register', payload);
 
       // 8. สมัครสำเร็จ
       Alert.alert('สำเร็จ!', 'สมัครสมาชิกเรียบร้อยแล้ว, กรุณาเข้าสู่ระบบ');

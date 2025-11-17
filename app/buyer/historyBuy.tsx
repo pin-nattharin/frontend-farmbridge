@@ -151,10 +151,15 @@ export default function HistoryBuyScreen() {
     
     const handleNavPress = (tab: ActiveTab) => {
         setActiveTab(tab);
-        if (tab === 'home') router.replace('/buyer/homeBuyer'); 
-        else if (tab === 'add') router.push('/buyer/createDemand');
-        else if (tab === 'profile') router.replace('/buyer/buyerProfile'); 
-        else if (tab === 'notify') router.replace('/buyer/notificationDemand');
+        if (tab === 'home') {
+            router.replace('/buyer/homeBuyer');
+        } else if (tab === 'add') {
+            router.push('/buyer/createDemand');
+        } else if (tab === 'notify') {
+            router.replace('/buyer/notificationDemand');
+        } else if (tab === 'profile' || tab === 'list') {
+            return;
+        }
     };
     
     // ฟังก์ชันสำหรับส่งไปยังหน้า ProductDetailScreen
@@ -195,7 +200,7 @@ export default function HistoryBuyScreen() {
                     onListPress={() => handleNavPress('list')}
                     onAddPress={() => handleNavPress('add')}
                     onNotifyPress={() => handleNavPress('notify')}
-                    onProfilePress={() => handleNavPress('profile')}
+                    onProfilePress={() => setActiveTab('profile')}
                     activeTab={activeTab}
                 />
             </View>

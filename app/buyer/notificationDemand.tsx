@@ -90,10 +90,15 @@ export default function NotificationScreen() {
 
     const handleNavPress = (tab: ActiveTab) => {
         setActiveTab(tab);
-        if (tab === 'home') router.replace('/buyer/homeBuyer'); 
-        else if (tab === 'add') router.push('/buyer/createDemand');
-        else if (tab === 'profile') router.replace('/buyer/buyerProfile');
-        else if (tab === 'list') router.replace('/buyer/historyDemand');
+        if (tab === 'home') {
+            router.replace('/buyer/homeBuyer');
+        } else if (tab === 'add') {
+            router.push('/buyer/createDemand');
+        } else if (tab === 'list') {
+            router.replace('/buyer/historyDemand');
+        } else if (tab === 'profile' || tab === 'notify') {
+            return;
+        }
     };
 
     return (
@@ -131,7 +136,7 @@ export default function NotificationScreen() {
                     onListPress={() => handleNavPress('list')}
                     onAddPress={() => handleNavPress('add')}
                     onNotifyPress={() => handleNavPress('notify')}
-                    onProfilePress={() => handleNavPress('profile')}
+                    onProfilePress={() => setActiveTab('profile')}
                     activeTab={activeTab}
                 />
             </View>

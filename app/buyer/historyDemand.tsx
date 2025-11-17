@@ -125,11 +125,16 @@ export default function HistoryDemandScreen() {
 
     const handleNavPress = (tab: ActiveTab) => {
         setActiveTab(tab);
-        // ใช้ Absolute Path ในการนำทาง
-        if (tab === 'home') router.replace('/buyer/homeBuyer'); 
-        else if (tab === 'add') router.push('/buyer/createDemand');
-        else if (tab === 'notify') router.replace('/buyer/notificationDemand');
-        else if (tab === 'profile') router.replace('/buyer/buyerProfile');    };
+        if (tab === 'home') {
+            router.replace('/buyer/homeBuyer');
+        } else if (tab === 'add') {
+            router.push('/buyer/createDemand');
+        } else if (tab === 'notify') {
+            router.replace('/buyer/notificationDemand');
+        } else if (tab === 'profile' || tab === 'list') {
+            return;
+        }
+    };
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -158,7 +163,7 @@ export default function HistoryDemandScreen() {
                     onListPress={() => handleNavPress('list')}
                     onAddPress={() => handleNavPress('add')}
                     onNotifyPress={() => handleNavPress('notify')}
-                    onProfilePress={() => handleNavPress('profile')}
+                    onProfilePress={() => setActiveTab('profile')}
                     activeTab={activeTab}
                 />
             </View>

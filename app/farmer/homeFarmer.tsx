@@ -29,7 +29,7 @@ interface Listing {
 // ข้อมูลจำลอง (DUMMY DATA) 
 // ----------------------------------------------------
 const typeItems = [
-    { label: 'ทุกประเภท', value: 'ทั้งหมด' },
+    { label: 'ทุกประเภท', value: 'all' },
     { label: 'ทุเรียน', value: 'ทุเรียน' },
     { label: 'มะม่วง', value: 'มะม่วง' },
     { label: 'องุ่น', value: 'องุ่น' },
@@ -37,7 +37,7 @@ const typeItems = [
 ];
 
 const areaItems = [
-    { label: 'ทุกพื้นที่', value: 'ทุกพื้นที่' },
+    { label: 'ทุกพื้นที่', value: 'all' },
     { label: '5 กม.', value: '5' },     
     { label: '20 กม.', value: '20' },    
     { label: '30 กม.', value: '30' },
@@ -45,7 +45,7 @@ const areaItems = [
 ];
 
 const priceItems = [
-    { label: 'ราคา', value: 'ราคาทั้งหมด' },
+    { label: 'ราคา', value: 'all' },
     { label: 'ต่ำ-สูง', value: 'ต่ำ-สูง' },
     { label: 'สูง-ต่ำ', value: 'สูง-ต่ำ' },
 ];
@@ -103,21 +103,35 @@ const HomeScreen: React.FC = () => {
     const fetchListings = useCallback(async () => {
         setIsFetching(true);
         try {
-            const params: { product_name?: string; status?: string } = { status: 'available' };
-            
+            const params: { product_name?: string; status?: string } = {
+                status: 'available'
+            };
+
             if (typeValue && typeValue !== 'all') {
                 params.product_name = typeValue;
             }
-
             const response = await api.get('/listings/public', { params });
-            setListings(formatListingsResponse(response.data));
-            
+            let data: Listing[] = formatListingsResponse(response.data);
+
+            if (areaValue && areaValue !== 'all') {
+                const maxDistance = parseInt(areaValue, 10);
+                data = data.filter(item => item.distance_km !== null && item.distance_km <= maxDistance);
+            }
+
+            if (priceValue && priceValue !== 'all') {
+                if (priceValue === 'price_asc') {
+                    data = [...data].sort((a, b) => a.price_per_unit - b.price_per_unit);
+                } else if (priceValue === 'price_desc') {
+                    data = [...data].sort((a, b) => b.price_per_unit - a.price_per_unit);
+                }
+            }
+            setListings(data);
         } catch (error: any) {
             handleFetchError(error);
         } finally {
             setIsFetching(false);
         }
-    }, [typeValue]);
+    }, [typeValue, areaValue, priceValue]);
 
     useEffect(() => {
         fetchListings();
@@ -158,17 +172,15 @@ const HomeScreen: React.FC = () => {
     const handleNavPress = (tab: 'home' | 'chart' | 'add' | 'notifications' | 'profile') => {
         setActiveTab(tab);
         if (tab === 'home') {
-            //หน้าเดิม 
+            return;
         } else if (tab === 'chart') {
-             router.push('/farmer/dashboard'); // ผู้ซื้อสร้าง Demand
+            router.push('/farmer/dashboard');
         } else if (tab === 'add') {
-             router.push('/farmer/createPost'); 
-        }
-        else if (tab === 'notifications') {
-             router.push('/farmer/notification'); 
-        }
-        else if (tab === 'profile') {
-             router.push('/farmer/farmerProfile'); 
+            router.push('/farmer/createPost');
+        } else if (tab === 'notifications') {
+            router.push('/farmer/notification');
+        } else if (tab === 'profile') {
+            return;
         }
     };
 
@@ -280,7 +292,7 @@ const HomeScreen: React.FC = () => {
                     onChartPress={() => handleNavPress('chart')} 
                     onAddPress={() => handleNavPress('add')}
                     onNotificationsPress={() => handleNavPress('notifications')}
-                    onProfilePress={() => handleNavPress('profile')}
+                    onProfilePress={() => setActiveTab('profile')}
                     activeTab={activeTab}
                 />
         

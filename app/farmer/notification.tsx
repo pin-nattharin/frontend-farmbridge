@@ -122,12 +122,15 @@ export default function SaleNotificationScreen() {
 
     const handleNavPress = (tab: ActiveTab) => {
         setActiveTab(tab);
-        // ⚠️ โค้ดจริง: ใช้ router.replace/push ตามโครงสร้าง App ของคุณ
-        if (tab === 'home') router.replace('/farmer/homeFarmer');
-        else if (tab === 'add') router.push('/farmer/createPost');
-        else if (tab === 'profile') router.replace('/farmer/farmerProfile');
-        else if (tab === 'chart') router.replace('/farmer/dashboard');
-        // Notifications อยู่หน้าเดิม
+        if (tab === 'home') {
+            router.replace('/farmer/homeFarmer');
+        } else if (tab === 'add') {
+            router.push('/farmer/createPost');
+        } else if (tab === 'chart') {
+            router.replace('/farmer/dashboard');
+        } else if (tab === 'profile' || tab === 'notifications') {
+            return;
+        }
     };
 
     return (
@@ -160,7 +163,7 @@ export default function SaleNotificationScreen() {
                     onChartPress={() => handleNavPress('chart')}
                     onAddPress={() => handleNavPress('add')}
                     onNotificationsPress={() => handleNavPress('notifications')}
-                    onProfilePress={() => handleNavPress('profile')}
+                    onProfilePress={() => setActiveTab('profile')}
                     activeTab={activeTab}
                 />
             </View>

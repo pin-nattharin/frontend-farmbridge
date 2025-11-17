@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons'; // <-- ใช้ MaterialCommunityIcons เพราะมีไอคอนหลากหลายกว่า
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 interface FarmerNavbarProps {
   activeTab: 'home' | 'chart' | 'add' | 'notifications' | 'profile';
@@ -9,7 +10,7 @@ interface FarmerNavbarProps {
   onChartPress: () => void;
   onAddPress: () => void;
   onNotificationsPress: () => void;
-  onProfilePress: () => void;
+  onProfilePress?: () => void;
 }
 
 const NavbarFarmer: React.FC<FarmerNavbarProps> = ({
@@ -20,6 +21,7 @@ const NavbarFarmer: React.FC<FarmerNavbarProps> = ({
   onNotificationsPress,
   onProfilePress,
 }) => {
+  const router = useRouter();
   // ฟังก์ชันช่วยสำหรับกำหนดสีไอคอน
   const getIconColor = (tabName: string) => {
     return activeTab === tabName ? '#0056b3' : '#888'; // สีน้ำเงินสำหรับ Active, สีเทาสำหรับ Inactive
@@ -67,7 +69,13 @@ const NavbarFarmer: React.FC<FarmerNavbarProps> = ({
       </TouchableOpacity>
 
       {/* Profile Button */}
-      <TouchableOpacity style={styles.navButton} onPress={onProfilePress}>
+      <TouchableOpacity
+        style={styles.navButton}
+        onPress={() => {
+          router.push('/farmer/farmerProfile');
+          onProfilePress?.();
+        }}
+      >
         <Ionicons
                                 name={activeTab === 'profile' ? "person" : "person-outline"}
                                 size={28}

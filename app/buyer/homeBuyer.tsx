@@ -7,7 +7,7 @@ import SearchBar from '../../components/ui/SearchBar';
 import MarketingBanner from '../../components/ui/MarketingBanner'; 
 import CustomDropdown from '../../components/ui/Dropdown'; 
 import ProductCard from '../../components/ui/ProductCard'; 
-import BuyerNavbar from '../../components/ui/BuyerNavbar'; // แก้ Import เป็น BuyerNavbar
+import BuyerNavbar from '../../components/ui/BuyerNavbar'; 
 import api from '../../services/api';
 
 // Interface สำหรับข้อมูลสินค้า
@@ -81,7 +81,7 @@ const HomeScreen: React.FC = () => {
 
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
-    // --- ฟังก์ชันดึงข้อมูล (เหมือน index.tsx) ---
+    // --- ฟังก์ชันดึงข้อมูล ---
     const formatListingsResponse = (payload: any): Listing[] => {
         if (Array.isArray(payload)) return payload;
         if (payload?.items && Array.isArray(payload.items)) return payload.items;
@@ -97,7 +97,7 @@ const HomeScreen: React.FC = () => {
             data: error?.response?.data,
             message: error?.message
         });
-        Alert.alert('ผิดพลาด', fallbackMessage);
+        // Alert.alert('ผิดพลาด', fallbackMessage); // ปิด Alert รบกวนตอนโหลดหน้า
     };
 
     const fetchListings = useCallback(async () => {
@@ -145,8 +145,8 @@ const HomeScreen: React.FC = () => {
         router.push('/buyer/RegisterBuyerScreen'); 
     };
 
-    // --- 1. แก้ไขฟังก์ชันนี้ ---
     const handleProductPress = (productId: string) => {
+        // ไปหน้า Product Detail
         router.push({
             pathname: '/productDetail', 
             params: { id: productId }
@@ -168,21 +168,21 @@ const HomeScreen: React.FC = () => {
         setPriceOpen(true);
     };
     
-    // *** ฟังก์ชันสำหรับ Navbar ***
+    // *** ฟังก์ชันสำหรับ Navbar (แก้ไขให้ Router ถูกต้อง) ***
     const handleNavPress = (tab: 'home' | 'list' | 'add' | 'notify' | 'profile') => {
         setActiveTab(tab);
+
         if (tab === 'home') {
-            //หน้าเดิม
+            return;
         } else if (tab === 'list') {
-             router.push('/buyer/historyDemand'); // ผู้ซื้อสร้าง Demand
+            router.push('/buyer/historyDemand');
         } else if (tab === 'add') {
-             router.push('/buyer/createDemand'); 
-        }
-        else if (tab === 'notify') {
-             router.push('/buyer/notificationDemand'); 
-        }
-        else if (tab === 'profile') {
-             router.push('/buyer/buyerProfile'); 
+            router.push('/buyer/createDemand');
+        } else if (tab === 'notify') {
+            router.push('/buyer/notificationDemand');
+        } else if (tab === 'profile') {
+            // navbar will handle navigation, we only update state for highlighting
+            return;
         }
     };
 
@@ -218,7 +218,6 @@ const HomeScreen: React.FC = () => {
 
                     {/* --- 3. Filter/Dropdown Row --- */}
                     <View style={styles.filterContainer}>
-                        {/* Dropdown 1: ประเภท - zIndex สูงสุด */}
                         <CustomDropdown
                             containerStyle={[styles.dropdownWrapper, { zIndex: 4000 }]}
                             placeholder="ประเภท"
@@ -231,7 +230,6 @@ const HomeScreen: React.FC = () => {
                             onOpen={onOpenType}
                         />
 
-                        {/* Dropdown 2: พื้นที่ - zIndex รองลงมา */}
                         <CustomDropdown
                             containerStyle={[styles.dropdownWrapper, { zIndex: 3000 }]}
                             placeholder="พื้นที่"
@@ -244,7 +242,6 @@ const HomeScreen: React.FC = () => {
                             onOpen={onOpenArea}
                         />
 
-                        {/* Dropdown 3: ราคา/ปริมาณ - zIndex ต่ำกว่า */}
                         <CustomDropdown
                             containerStyle={[styles.dropdownWrapper, { zIndex: 2000 }]}
                             placeholder="ราคา"
@@ -266,16 +263,13 @@ const HomeScreen: React.FC = () => {
                         data={listings}
                         keyExtractor={item => item.id}
                         renderItem={({ item }) => {
-
                             const imagePath = (item.image_url && item.image_url.length > 0) ? item.image_url[0] : null;
                             let fullImageUrl = 'https://via.placeholder.com/300';
 
                             if (imagePath) {
                                 if (imagePath.startsWith('http') || imagePath.startsWith('https')) {
-                                    // กรณี 1: เป็น URL เต็มอยู่แล้ว (เช่น ลิงก์จากเว็บอื่น หรือ Cloud) -> ใช้ได้เลย
                                     fullImageUrl = imagePath;
                                 } else {
-                                    // กรณี 2: เป็น Relative Path (เช่น /uploads/img.jpg) -> ต้องต่อกับ Base URL ของ Server
                                     fullImageUrl = `${IMAGE_BASE_URL}${imagePath}`;
                                 }
                             }
@@ -287,25 +281,28 @@ const HomeScreen: React.FC = () => {
                                 unit={item.unit}
                                 grade={item.grade}
                                 distance={typeof item.distance_km === 'number' ? `${item.distance_km.toFixed(1)} กม.` : 'ไม่ระบุ'}
-                                    imageUrl={fullImageUrl}
-                                    onPress={() => handleProductPress(item.id)}
+                                imageUrl={fullImageUrl}
+                                onPress={() => handleProductPress(item.id)}
                             />
                             );
                         }}
                         numColumns={2} 
                         contentContainerStyle={styles.productList}
-                        scrollEnabled={false} 
+                        scrollEnabled={false}
+                        ListEmptyComponent={() => (
+                             <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>ไม่พบสินค้า</Text>
+                        )} 
                     />
 
                 </ScrollView>
                 
-                {/* --- 6. Bottom Navbar Component (เรียกใช้ FarmerNavbar) --- */}
+                {/* --- 6. Bottom Navbar Component --- */}
                 <BuyerNavbar
                     onHomePress={() => handleNavPress('home')}
                     onListPress={() => handleNavPress('list')} 
                     onAddPress={() => handleNavPress('add')}
                     onNotifyPress={() => handleNavPress('notify')}
-                    onProfilePress={() => handleNavPress('profile')}
+                    onProfilePress={() => setActiveTab('profile')}
                     activeTab={activeTab}
                 />
         
@@ -315,7 +312,7 @@ const HomeScreen: React.FC = () => {
 };
 
 // ----------------------------------------------------
-// Styles (คงเดิม)
+// Styles
 const styles = StyleSheet.create({
     fullScreen: {
         flex: 1,
@@ -339,20 +336,6 @@ const styles = StyleSheet.create({
     componentContainer: {
         marginBottom: 15,
     },
-    componentHeader: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#38A169',
-        marginBottom: 10,
-        paddingHorizontal: 15,
-    },
-    note: {
-        fontSize: 12,
-        color: '#A0AEC0',
-        marginTop: 5,
-        paddingHorizontal: 20,
-    },
-    
     // --- Styles for Filter ---
     filterContainer: {
         flexDirection: 'row',

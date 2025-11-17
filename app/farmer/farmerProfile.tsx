@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'; // 🟢 1. Import useEffect
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,15 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
+  ActivityIndicator
 } from 'react-native';
 
 import { useRouter, useFocusEffect } from 'expo-router';
 import FarmerNavbar from '../../components/ui/FarmerNavbar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../../services/api'; 
 
-// --- (ลบ const farmerData ... ที่เป็นข้อมูลจำลองทิ้งไป) --- 
-
-// --- (ฟังก์ชัน getInitials เหมือนเดิม) ---
+// --- ฟังก์ชัน Helper ---
 const getInitials = (fullname: string): string => {
   if (!fullname) return '';
   const names = fullname.split(' ');
@@ -24,7 +24,6 @@ const getInitials = (fullname: string): string => {
   return `${firstNameInitial}${lastNameInitial}`;
 };
 
-// --- (Helper Component: InfoField เหมือนเดิม) ---
 const InfoField = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.infoFieldContainer}>
     <Text style={styles.infoLabel}>{label}</Text>
@@ -32,33 +31,57 @@ const InfoField = ({ label, value }: { label: string; value: string }) => (
   </View>
 );
 
-// --- 3. หน้าจอโปรไฟล์หลัก ---
 const FarmerProfileScreen = () => {
 
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'home' | 'chart' | 'add' | 'notifications' | 'profile'>('profile');
     
-    // 🟢 2. สร้าง State มารับข้อมูลผู้ใช้ (เริ่มต้นเป็น null)
     const [farmerData, setFarmerData] = useState<any>(null);
+    const [loading, setLoading] = useState(true); 
 
-    // 🟢 3. เปลี่ยนจาก useEffect เป็น useFocusEffect
     useFocusEffect(
         useCallback(() => {
             const loadUserData = async () => {
-                const userString = await AsyncStorage.getItem('user');
-                if (userString) {
-                    const userData = JSON.parse(userString);
-                    setFarmerData(userData);
-                    console.log("Profile data loaded:", userData); // (ไว้ debug)
-                } else {
-                    Alert.alert("Error", "ไม่พบข้อมูลผู้ใช้, กรุณาเข้าสู่ระบบใหม่");
+                setLoading(true);
+                try {
+                    // 1. ดึง Token (ใช้ชื่อ userToken ตาม AuthContext)
+                    const token = await AsyncStorage.getItem('userToken');
+                    
+                    if (!token) {
+                        Alert.alert("แจ้งเตือน", "กรุณาเข้าสู่ระบบก่อนใช้งาน");
+                        router.replace('/LoginScreen');
+                        return;
+                    }
+
+                    // 2. ยิง API ดึงข้อมูลสด
+                    const response = await api.get('/auth/profile', {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+
+                    // 3. แสดงผลทันที (❌ ไม่มีการบันทึก setItem ลงเครื่อง)
+                    setFarmerData(response.data);
+
+                } catch (error: any) {
+                    console.error("Failed to load user data:", error);
+                    
+                    if (error.response && error.response.status === 401) {
+                        Alert.alert("Session หมดอายุ", "กรุณาเข้าสู่ระบบใหม่");
+                    } else {
+                        Alert.alert("ข้อผิดพลาด", "ไม่สามารถโหลดข้อมูลโปรไฟล์ได้");
+                    }
+                    
+                    // ล้างข้อมูลและกลับหน้า Login
+                    await AsyncStorage.removeItem('userToken');
+                    await AsyncStorage.removeItem('userData');
                     router.replace('/LoginScreen');
+                } finally {
+                    setLoading(false);
                 }
             };
-            loadUserData();
-        }, []) // Dependency array ของ useCallback
-    );
 
+            loadUserData();
+        }, [])
+    );
 
     const handleEditProfile = () => {
         router.push('/editProfile');
@@ -78,12 +101,18 @@ const FarmerProfileScreen = () => {
                     text: "ออกจากระบบ",
                     onPress: async () => { 
                         try {
-                            await AsyncStorage.removeItem('token');
-                            await AsyncStorage.removeItem('user');
-                            console.log("User logged out, token cleared.");
+                            const token = await AsyncStorage.getItem('userToken');
+                            if (token) {
+                                await api.post('/auth/logout', {}, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                }).catch(() => {});
+                            }
+                            // ล้าง Token ออกจากเครื่อง
+                            await AsyncStorage.removeItem('userToken');
+                            await AsyncStorage.removeItem('userData');
                             router.replace('/LoginScreen');
                         } catch (e) {
-                            console.error("Failed to clear async storage", e);
+                            await AsyncStorage.clear();
                             router.replace('/LoginScreen');
                         }
                     },
@@ -93,43 +122,41 @@ const FarmerProfileScreen = () => {
         );
     };
 
-    // 🟢 4. (ปรับปรุง) รวมฟังก์ชัน Navbar ให้กระชับขึ้น
     const handleNavPress = (tab: 'home' | 'chart' | 'add' | 'notifications' | 'profile') => {
         setActiveTab(tab);
-        if (tab === 'home') {
-            router.replace('/farmer/homeFarmer');
-        } else if (tab === 'chart') {
-            router.push('/farmer/dashboard'); 
-        } else if (tab === 'add') {
-            router.push('/farmer/createPost'); 
-        } else if (tab === 'notifications') {
-             router.push('/farmer/notification'); 
-        } else if (tab === 'profile') {
-            // อยู่หน้าเดิม
-        }
+        if (tab === 'home') router.push('/farmer/homeFarmer');
+        else if (tab === 'chart') router.push('/farmer/dashboard'); 
+        else if (tab === 'add') router.push('/farmer/createPost'); 
+        else if (tab === 'notifications') router.push('/farmer/notification'); 
     };
 
-    // 🟢 5. เพิ่ม Loading Screen
-    if (!farmerData) {
+    // 1. เช็ค Loading ก่อน
+    if (loading) {
         return (
             <SafeAreaView style={styles.safeArea}>
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <Text>กำลังโหลดข้อมูล...</Text>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#0056b3" />
+                    <Text style={styles.loadingText}>กำลังโหลดข้อมูล...</Text>
                 </View>
             </SafeAreaView>
         );
     }
 
-    // 🟢 6. (เหมือนเดิม) แต่ตอนนี้จะใช้ข้อมูลจริงจาก state
+    // 2. เช็คว่ามีข้อมูลหรือไม่ (ป้องกันจอขาว)
+    if (!farmerData) {
+        return null; 
+    }
+
+    // 3. คำนวณค่าต่างๆ หลังจากมั่นใจว่ามีข้อมูลแล้ว
     const initials = getInitials(farmerData.fullname);
-    const firstName = farmerData.fullname.split(' ')[0] || '';
-    const lastName = farmerData.fullname.split(' ')[1] || '';
+    const firstName = farmerData.fullname ? farmerData.fullname.split(' ')[0] : '-';
+    const lastName = farmerData.fullname && farmerData.fullname.split(' ').length > 1 ? farmerData.fullname.split(' ')[1] : '';
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.contentWrapper}>
                 <ScrollView style={styles.container}>
-                    {/* (ส่วน UI ทั้งหมดเหมือนเดิม แต่ตอนนี้จะแสดงข้อมูลจริง) */}
+                    
                     <View style={styles.headerBackground}>
                         <Text style={styles.headerTitle}>โปรไฟล์</Text>
                     </View>
@@ -140,10 +167,6 @@ const FarmerProfileScreen = () => {
                         </View>
 
                         <Text style={styles.fullName}>{farmerData.fullname}</Text>
-                        
-                        {/* 🟢 7. API ของคุณไม่ได้ส่ง is_active มา แต่ถ้าส่งมา ก็ใช้ได้เลย */}
-                        {/* {farmerData.is_active && ( ... )} */}
-                        {/* หมายเหตุ: farmerData.is_active อาจไม่มีใน object ที่ได้จาก Login */}
 
                         <View style={styles.buttonRow}>
                             <TouchableOpacity style={styles.buttonOutline} onPress={handleEditProfile}>
@@ -158,12 +181,9 @@ const FarmerProfileScreen = () => {
                             <Text style={styles.infoBoxTitle}>ข้อมูลส่วนตัว</Text>
                             <InfoField label="First Name" value={firstName} />
                             <InfoField label="Last Name" value={lastName} />
-                            <InfoField label="Email Address" value={farmerData.email} />
-                            {/* 🟢 8. API login ยังไม่ส่ง phone มา ถ้าส่งมา ให้ลบคอมเมนต์ออก
-                            <InfoField label="Phone" value={farmerData.phone} /> 
-                            */}
-                            {/* 🟢 แสดงเบอร์โทรที่อัปเดตแล้ว */}
-                            <InfoField label="Phone" value={farmerData.phone} /> 
+                            <InfoField label="Email Address" value={farmerData.email || '-'} />
+                            <InfoField label="Phone" value={farmerData.phone || '-'} /> 
+                            <InfoField label="Address" value={farmerData.address || '-'} />
                         </View>
 
                         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -172,7 +192,6 @@ const FarmerProfileScreen = () => {
                     </View>
                 </ScrollView>
                 
-                {/* 🟢 9. (ปรับปรุง) เรียกใช้ Navbar ที่รวมฟังก์ชันแล้ว */}
                 <FarmerNavbar
                     activeTab={activeTab}
                     onHomePress={() => handleNavPress('home')}
@@ -186,7 +205,7 @@ const FarmerProfileScreen = () => {
     );
 };
 
-// --- (Styles ทั้งหมดเหมือนเดิม) ---
+// --- Styles ---
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -198,9 +217,18 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#f4f4f4',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+  },
   headerBackground: {
     backgroundColor: '#0056b3',
-    height: 180,
+    height: 240,
     paddingTop: 20,
     alignItems: 'center',
   },
@@ -208,13 +236,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
-    marginTop: 70,
+    marginTop: 60,
   },
   contentCard: {
     backgroundColor: 'white',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    marginTop: -30, 
+    marginTop: -40, 
     paddingHorizontal: 20,
     alignItems: 'center',
     paddingTop: 80, 
@@ -241,18 +269,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginTop: 10, 
-  },
-  verifiedBadge: {
-    backgroundColor: '#e6f7eb', 
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 15,
-    marginTop: 8,
-  },
-  verifiedText: {
-    color: '#28a745', 
-    fontWeight: 'bold',
-    fontSize: 12,
   },
   buttonRow: {
     flexDirection: 'row',

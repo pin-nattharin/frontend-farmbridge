@@ -11,143 +11,148 @@ import {
   TextInput,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons'; // (สำหรับไอคอน Checkbox)
+import { MaterialIcons } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons'; 
 
-// --- (จำลอง) ข้อมูลที่ถูกส่งมาจากหน้าก่อนหน้า (เช่น หน้า Match) ---
-// ในแอปจริง ข้อมูลนี้จะถูกดึงมาจาก API หรือส่งมาจาก useLocalSearchParams
-const mockTransactionData = {
-  // (ข้อมูลจาก Schema 'transactions')
-  product_name: 'มะม่วง',
-  quantity: 30,
-  price_per_unit: 30,
-  total_amount: 900,
-  pickup_code: 'ABC123', // (รหัสที่จะได้หลังจ่ายสำเร็จ)
-  // (ข้อมูลเสริมสำหรับ UI)
-  seller_location: 'สหกรณ์ฟาร์ม อ.ฝาง, จ.เชียงใหม่',
-  product_image: 'https://i.imgur.com/gS4QhmS.jpeg',
-  available_pickup_dates: ['6/11/2025'],
-  pickup_deadline: '12/11/2568',
-  wieght_unit: '20 กิโลกรัม',
-};
-    
 const PaymentScreen = () => {
   const router = useRouter();
-  // const { match_id } = useLocalSearchParams(); // (วิธีรับ ID เพื่อไปดึง data จริง)
+  
+  // ✅ 1. รับข้อมูลจากหน้า Product Detail
+  const params = useLocalSearchParams();
+  
+  // แปลงข้อมูลที่รับมา (เพราะ router params มักเป็น string)
+  const product_name = params.product_name as string || 'สินค้า';
+  const price_per_unit = parseFloat(params.price_per_unit as string) || 0;
+  const seller_location = params.seller_location as string || '-';
+  const product_image = params.image_url as string || 'https://via.placeholder.com/150';
+  const unit = params.unit as string || 'กก.';
+  const pickup_date_raw = params.pickup_date as string; // วันที่นัดรับ
 
-  // 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
-    const handleBack = () => {
-        router.back();
-    };
+  // แปลงวันที่ให้สวยงาม
+  let formattedPickupDate = 'ไม่ระบุ';
+  if (pickup_date_raw) {
+      const dateObj = new Date(pickup_date_raw);
+      const day = dateObj.getDate();
+      const month = dateObj.toLocaleDateString('th-TH', { month: 'long' });
+      const year = dateObj.getFullYear() + 543; // บวก 543 เป็น พ.ศ.
+      formattedPickupDate = `${day} ${month} ${year}`;
+  }
 
+  const [weightInput, setWeightInput] = useState('');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [weightInKg, setWeightInKg] = useState('');
 
-  // ฟังก์ชันสำหรับกด "ชำระเงิน"
+  // ✅ 2. คำนวณราคารวมแบบ Real-time
+  const quantity = parseFloat(weightInput) || 0;
+  const totalAmount = quantity * price_per_unit;
+
+  const handleBack = () => {
+        router.back();
+  };
+
   const handlePayment = () => {
-    // 1. ตรวจสอบว่าเลือกวันหรือยัง
-    if (!weightInKg.trim()) {
-      Alert.alert('โปรดระบุจำนวนกิโลกรัม', 'กรุณากรอกจำนวนกิโลกรัมที่ต้องการซื้อ');
+    // Validation
+    if (!weightInput.trim() || quantity <= 0) {
+      Alert.alert('โปรดระบุจำนวน', `กรุณากรอกจำนวน ${unit} ที่ต้องการซื้อ`);
       return;
     }
 
     if (!selectedDate) {
-      Alert.alert('โปรดเลือกวัน', 'กรุณาเลือกวันที่สะดวกไปรับสินค้า');
+      Alert.alert('โปรดเลือกวัน', 'กรุณายืนยันวันที่สะดวกไปรับสินค้า');
       return;
     }
 
-    // 2. (จำลอง) การยิง API ชำระเงิน
-    // ... (ยิง API ไปยัง Backend เพื่ออัปเดต payment_status = 'paid'
-    // ... และบันทึก 'pickup_date' = selectedDate)
-    // ... (Backend จะตอบกลับมาพร้อม 'pickup_code')
-
+    // จำลองการจ่ายเงินสำเร็จ
     console.log('Payment Confirmed:', {
-      pickup_date: selectedDate,
-      total_amount: mockTransactionData.total_amount,
+      product: product_name,
+      quantity: quantity,
+      total: totalAmount
     });
 
-    // 3. เมื่อสำเร็จ นำทางไปหน้า Success
-    // (เราจะส่งข้อมูลจาก schema 'transactions' ไปแสดงผล)
+    // ไปหน้า Success พร้อมส่งข้อมูลสรุป
     router.push({
-      pathname: '/buyer/paymentSuccess', // (ต้องสร้างไฟล์นี้)
+      pathname: '/buyer/paymentSuccess',
       params: {
-        pickup_code: mockTransactionData.pickup_code,
+        pickup_code: `CODE-${Math.floor(Math.random() * 10000)}`, // สร้าง Code จำลอง
         pickup_date: selectedDate,
-        total_amount: mockTransactionData.total_amount,
+        total_amount: totalAmount.toLocaleString(),
       },
     });
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
-                        </TouchableOpacity>
+            <Ionicons name="arrow-back" size={24} color="#0056b3" />
+        </TouchableOpacity>
                       
-      <Stack.Screen options={{ title: 'การชำระเงิน' }} />
+      <Stack.Screen options={{ headerShown: false }} />
       <Text style={styles.pageTitle}>การชำระเงิน</Text>
+      
       <ScrollView style={styles.container}>
-        {/* --- 1. การ์ดสินค้า --- */}
+        {/* --- การ์ดสินค้า --- */}
         <View style={styles.card}>
           <View style={styles.itemHeader}>
-            <Image source={{ uri: mockTransactionData.product_image }} style={styles.itemImage} />
+            <Image source={{ uri: product_image }} style={styles.itemImage} />
             <View style={styles.itemInfo}>
-              <Text style={styles.productName}>{mockTransactionData.product_name}</Text>
-              <Text style={styles.itemText}>จำนวน : {mockTransactionData.quantity} กิโลกรัม</Text>
-              <Text style={styles.itemText}>ราคา : {mockTransactionData.price_per_unit} บาท/กก.</Text>
+              <Text style={styles.productName}>{product_name}</Text>
+              <Text style={styles.itemText}>ราคา : {price_per_unit} บาท/{unit}</Text>
               <View style={styles.locationContainer}>
                 <MaterialIcons name="location-pin" size={16} color="#074E9F" /> 
-                <Text style={styles.locationText}>{mockTransactionData.seller_location}</Text>
+                <Text style={styles.locationText} numberOfLines={1}>{seller_location}</Text>
               </View>
             </View>
           </View>
           
           <View style={styles.divider} />
 
-          <Text style={styles.inputLabel}>จำนวนกิโลกรัมที่ต้องการซื้อ</Text>
+          {/* ช่องกรอกจำนวน */}
+          <Text style={styles.inputLabel}>จำนวน ({unit}) ที่ต้องการซื้อ</Text>
           <TextInput
             style={styles.input}
-            placeholder="เช่น 20"
+            placeholder={`ระบุจำนวน ${unit}`}
             placeholderTextColor="#9aa0a6"
             keyboardType="numeric"
-            value={weightInKg}
-            onChangeText={setWeightInKg}
+            value={weightInput}
+            onChangeText={setWeightInput}
           />
 
+        {/* เลือกวันรับสินค้า (แสดงวันเดียวตามที่คนขายระบุ) */}
         <View style={styles.selectionRow}></View>
-          <Text style={styles.dateHeader}>วันที่ต้องเข้าไปรับสินค้า</Text>
+          <Text style={styles.dateHeader}>วันที่สะดวกเข้าไปรับสินค้า</Text>
           <View style={styles.dateRow}>
-          {mockTransactionData.available_pickup_dates.map((date) => (
             <TouchableOpacity 
-              key={date} 
               style={styles.dateOption} 
-              onPress={() => setSelectedDate(date)}
+              onPress={() => setSelectedDate(formattedPickupDate)}
             >
               <MaterialIcons 
-                name={selectedDate === date ? 'check-box' : 'check-box-outline-blank'}
+                name={selectedDate === formattedPickupDate ? 'check-box' : 'check-box-outline-blank'}
                 size={24} 
-                color={selectedDate === date ? '#28a745' : '#aaa'}
+                color={selectedDate === formattedPickupDate ? '#28a745' : '#aaa'}
               />
-              <Text style={styles.dateText}>{date}</Text>
+              <Text style={styles.dateText}>{formattedPickupDate}</Text>
             </TouchableOpacity>
-          ))}
         </View>
         </View>
 
-        {/* --- 3. สรุปยอด (เหมือนหน้าก่อน) --- */}
+        {/* --- สรุปยอด --- */}
         <View style={styles.summaryBox}>
             <Text style={styles.summaryTitle}>ข้อมูลการชำระเงิน</Text>
             <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>ยอดชำระทั้งหมด</Text>
-            <Text style={styles.summaryValue}>฿ {mockTransactionData.total_amount}</Text>
+                <Text style={styles.summaryLabel}>จำนวน</Text>
+                <Text style={styles.summaryValue}>{quantity} {unit}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>ยอดชำระทั้งหมด</Text>
+                <Text style={[styles.summaryValue, { fontSize: 20 }]}>฿ {totalAmount.toLocaleString()}</Text>
             </View>
         </View>
 
-        {/* --- 4. ปุ่มชำระเงิน --- */}
+        {/* --- ปุ่มชำระเงิน --- */}
         <TouchableOpacity style={styles.buttonSolid} onPress={handlePayment}>
-          <Text style={styles.buttonSolidText}>ชำระเงิน</Text>
+          <Text style={styles.buttonSolidText}>ยืนยันการชำระเงิน</Text>
         </TouchableOpacity>
+
+        <View style={{height: 50}} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -161,17 +166,18 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#074E9F',
-    marginTop: 70,
+    marginTop: 50, // ปรับลงมาหน่อยให้พ้นปุ่ม Back
     marginBottom: 20,
-    marginLeft: 100,
-    paddingLeft: 40,
-  },//  Style สำหรับปุ่มย้อนกลับ
-    backButton: {
-        position: 'absolute', // ทำให้ปุ่มลอย
-        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+    textAlign: 'center',
+  },
+  backButton: {
+        position: 'absolute', 
+        top: 50, 
         left: 15,
-        zIndex: 10, // ให้อยู่ด้านบนสุด
+        zIndex: 10, 
         padding: 5,
+        backgroundColor: 'rgba(255,255,255,0.8)', // เพิ่มพื้นหลังให้เห็นชัด
+        borderRadius: 20
     },
   card: {
     backgroundColor: 'white',
@@ -196,25 +202,26 @@ const styles = StyleSheet.create({
   },
   itemInfo: {
     flex: 1,
+    justifyContent: 'center'
   },
   productName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    marginBottom: 4
   },
   itemText: {
     fontSize: 14,
     color: '#555',
-    marginTop: 2,
+    marginBottom: 4
   },
   locationContainer: { 
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: 2,
+    alignItems: 'center',
   },
   locationText: { 
-    fontSize: 14,
-    color: '#555',
+    fontSize: 13,
+    color: '#777',
     marginLeft: 4, 
     flex: 1,
   },
@@ -223,29 +230,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     marginVertical: 16,
   },
-  deadlineTag: {
-    borderWidth: 1,
-    borderColor: '#0056b3', // (สีน้ำเงินตามขอบ)
-    backgroundColor: '#e6f0ff', // (สีฟ้าอ่อนตามพื้น)
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    alignSelf: 'flex-start', // (ให้ขนาดพอดีกับข้อความ)
-    marginBottom: 16, // (ระยะห่างจาก "ช่วงเวลา...")
-  },
-  deadlineText: {
-    color: '#0056b3', // (สีน้ำเงินตามข้อความ)
-    fontSize: 12,
-    fontWeight: '500',
-  },
   selectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap', // (เผื่อหน้าจอแคบมาก)
+    flexWrap: 'wrap', 
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 8,
   },
   dateHeader: {
     fontSize: 14,
@@ -256,11 +249,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
+    backgroundColor: '#f9f9f9',
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#eee'
   },
   dateText: {
     fontSize: 16,
     marginLeft: 8,
-    marginRight: 25,
     color: '#333',
   },
   summaryBox: {
@@ -273,6 +270,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#0056b3',
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#dbeafe',
+    paddingBottom: 5
   },
   summaryRow: {
     flexDirection: 'row',
@@ -293,34 +294,28 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 30,
+    marginTop: 10,
   },
   buttonSolidText: {
     color: 'white',
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 18,
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: 'bold',
     color: '#333',
-    marginBottom: 6,
-    marginTop: 6,
+    marginBottom: 8,
   },
   input: {
-    marginBottom: 15,
     borderWidth: 1,
     borderColor: '#d0d7de',
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     fontSize: 16,
     color: '#111',
-  },
-  inputHelper: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 6,
+    backgroundColor: '#fff'
   },
 });
 

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, Dimensions, Platform, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, Dimensions, Platform, Alert, ActivityIndicator } from 'react-native';
 // --- 1. Import useLocalSearchParams เพิ่ม ---
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 // เปลี่ยนกลับไปใช้ LineChart
-import { LineChart } from 'react-native-chart-kit'; 
+import { LineChart } from 'react-native-chart-kit';
+import api from '../services/api'; 
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
 import BuyerNavbar from '../components/ui/BuyerNavbar'; 
@@ -14,19 +15,25 @@ import BuyerNavbar from '../components/ui/BuyerNavbar';
 // ----------------------------------------------------
 const { width } = Dimensions.get('window');
 const IMAGE_HEIGHT = width * 0.9;
+const IMAGE_BASE_URL = 'http://10.0.2.2:3000';
 
-const productData = {
-    id: 'mango-1',
-    imageUrl: 'https://picsum.photos/id/66/600/600',
-    sellerName: 'สบายดีฟาร์ม',
-    postTime: 'โพสต์เมื่อ 3 ชั่วโมงที่แล้ว',
-    price: 30,
-    unit: 'กก.',
-    productName: 'มะม่วง',
-    quantity: 30,
-    details: 'รายละเอียด: พันธุ์น้ำดอกไม้ผิวไม่สวย แต่เนื้อคุณภาพดี เหมาะสำหรับนำไปแปรรูป ทำน้ำมะม่วงกวน หรือมะม่วงกวน',
-    pickupDeadline: '12/11/2568',
-};
+interface ListingDetail {
+    id: number;
+    product_name: string;
+    price_per_unit: string; // API ส่งมาเป็น string (Decimal)
+    unit: string;
+    quantity_available: string;
+    description: string;
+    pickup_date: string;
+    image_url: string[] | null;
+    created_at: string;
+    seller: {
+        fullname: string;
+        phone: string;
+        address: string;
+    };
+}
+
 
 // Data Structure สำหรับ react-native-chart-kit
 const priceGraphData = {
@@ -63,6 +70,26 @@ const chartConfig = {
 
 type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
 
+const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.toLocaleDateString('th-TH', { month: 'long' });
+    const year = date.getFullYear() + 543; // แปลงเป็น พ.ศ.
+    return `${day} ${month} ${year}`;
+};
+
+const getTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const posted = new Date(dateString);
+    const diffInMs = now.getTime() - posted.getTime();
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'เมื่อสักครู่';
+    if (diffInHours < 24) return `โพสต์เมื่อ ${diffInHours} ชั่วโมงที่แล้ว`;
+    return `โพสต์เมื่อ ${Math.floor(diffInHours / 24)} วันที่แล้ว`;
+};
+
 export default function ProductDetailScreen() {
     const router = useRouter();
     
@@ -71,21 +98,105 @@ export default function ProductDetailScreen() {
 
     const [activeTab, setActiveTab] = useState<ActiveTab>('home');
 
+    const [listing, setListing] = useState<ListingDetail | null>(null);
+    const [loading, setLoading] = useState(true);
+
     // [ทดสอบ] แสดง ID ที่ได้รับใน console
     console.log("Received Product ID:", id);
 
+    useEffect(() => {
+        const fetchProductDetail = async () => {
+            try {
+                setLoading(true);
+                // เรียก API /listings/:id (ตรงกับ listing.routes.js)
+                const response = await api.get(`/listings/${id}`);
+                setListing(response.data);
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                Alert.alert("ผิดพลาด", "ไม่สามารถโหลดข้อมูลสินค้าได้");
+                router.back();
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (id) {
+            fetchProductDetail();
+        }
+    }, [id]);
+
     const handleBuy = () => {
-        Alert.alert('ยืนยันการซื้อ', `คุณต้องการซื้อ ${productData.productName} (ID: ${id}) ในราคานี้หรือไม่?`);
+        if (!listing) return;
+
+        // เตรียมรูปภาพ (ถ้ามี)
+        const imagePath = listing.image_url?.[0];
+        let fullImageUrl = '';
+        if (imagePath) {
+            if (imagePath.startsWith('http')) fullImageUrl = imagePath;
+            else fullImageUrl = `${IMAGE_BASE_URL}${imagePath}`;
+        }
+
+        // ส่งข้อมูลไปหน้า Payment
+        router.push({
+            pathname: '/buyer/payment',
+            params: {
+                listing_id: listing.id,
+                product_name: listing.product_name,
+                price_per_unit: listing.price_per_unit,
+                unit: listing.unit,
+                seller_location: listing.seller?.address || 'ไม่ระบุ',
+                image_url: fullImageUrl,
+                pickup_date: listing.pickup_date // ส่งวันที่นัดรับไปด้วย
+            }
+        });
     };
 
-    const handleNavPress = (tab: ActiveTab) => {
+    /* const handleNavPress = (tab: ActiveTab) => {
         setActiveTab(tab);
-        if (tab === 'home') router.replace('/buyer/homeBuyer');
-        else if (tab === 'add') router.push('/buyer/createDemand');
-        else if (tab === 'profile') router.replace('/buyer/buyerProfile');
-        else if (tab === 'list') router.replace('/buyer/historyDemand');
-        else if (tab === 'notify') router.replace('/buyer/notificationDemand');
-    };
+        if (tab === 'home') {
+            router.replace('/buyer/homeBuyer');
+        } else if (tab === 'add') {
+            router.push('/buyer/createDemand');
+        } else if (tab === 'list') {
+            router.replace('/buyer/historyDemand');
+        } else if (tab === 'notify') {
+            router.replace('/buyer/notificationDemand');
+        } else if (tab === 'profile') {
+            return;
+        }
+    }; */
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                 <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                    <ActivityIndicator size="large" color="#0056b3" />
+                 </View>
+            </SafeAreaView>
+        );
+    }
+
+    // 2. ถ้าโหลดเสร็จแล้ว แต่ listing ยังเป็น null (หาไม่เจอ/Error)
+    if (!listing) {
+        return (
+            <SafeAreaView style={styles.safeArea}>
+                 <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
+                    <Text style={{fontSize: 18, color: '#666', marginBottom: 20}}>ไม่พบข้อมูลสินค้า</Text>
+                    <TouchableOpacity onPress={() => router.back()} style={[styles.buyButton, {marginTop: 0, paddingHorizontal: 40}]}>
+                        <Text style={styles.buyButtonText}>ย้อนกลับ</Text>
+                    </TouchableOpacity>
+                 </View>
+            </SafeAreaView>
+        );
+    }
+
+    const imagePath = listing?.image_url?.[0];
+    
+    let fullImageUrl = 'https://via.placeholder.com/600'; 
+    if (imagePath) {
+        if (imagePath.startsWith('http')) fullImageUrl = imagePath;
+        else fullImageUrl = `${IMAGE_BASE_URL}${imagePath}`;
+    }
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -100,7 +211,7 @@ export default function ProductDetailScreen() {
                     {/* 1. Parallax Image Area */}
                     <View style={styles.imageArea}>
                         <Image
-                            source={{ uri: productData.imageUrl }}
+                            source={{ uri: fullImageUrl }}
                             style={styles.productImage}
                             resizeMode="cover"
                         />
@@ -116,31 +227,39 @@ export default function ProductDetailScreen() {
                         <View style={styles.sellerRow}>
                             <View style={styles.avatarCircle} />
                             <View style={styles.sellerInfo}>
-                                <Text style={styles.sellerName}>{productData.sellerName}</Text>
-                                <Text style={styles.postTime}>{productData.postTime}</Text>
+                               {/* แสดงชื่อผู้ขายจริง */}
+                                <Text style={styles.sellerName}>{listing?.seller?.fullname || 'ไม่ระบุชื่อ'}</Text>
+                                {/* แสดงเวลาโพสต์จริง */}
+                                <Text style={styles.postTime}>{getTimeAgo(listing?.created_at)}</Text>
                             </View>
                             <Text style={styles.priceTag}>
-                                {productData.price} บาท/{productData.unit}
+                                {parseFloat(listing.price_per_unit).toLocaleString()} บาท/{listing.unit}
                             </Text>
                         </View>
 
-                        {/* Product Title (เพิ่ม ID เพื่อทดสอบ) */}
+                        {/* Product Title & ID */}
                         <Text style={styles.productTitle}>
-                            {productData.productName} (ID: {id}) 
+                            {listing.product_name}
                         </Text>
 
-                        {/* Details */}
+                        {/* Quantity */}
                         <Text style={styles.detailLabel}>
-                            จำนวน: {productData.quantity} {productData.unit}
+                            มีสินค้า: {listing.quantity_available} {listing.unit}
                         </Text>
-                        <Text style={styles.detailDescription}>{productData.details}</Text>
 
-                        {/* Pickup Deadline Badge */}
-                        <View style={styles.deadlineBadge}>
-                            <Text style={styles.deadlineText}>
-                                ควรมารับก่อนวันที่ {productData.pickupDeadline}
-                            </Text>
-                        </View>
+                        {/* Description */}
+                        <Text style={styles.detailDescription}>
+                            {listing.description || 'ไม่มีรายละเอียดเพิ่มเติม'}
+                        </Text>
+
+                        {/* Pickup Deadline */}
+                        {listing.pickup_date && (
+                            <View style={styles.deadlineBadge}>
+                                <Text style={styles.deadlineText}>
+                                    ควรมารับก่อนวันที่ {formatDate(listing.pickup_date)}
+                                </Text>
+                            </View>
+                        )}
 
                         {/* 3. Price Graph Area */}
                         <Text style={styles.graphTitle}>กราฟราคา</Text>
@@ -159,7 +278,7 @@ export default function ProductDetailScreen() {
 
                         {/* 4. Buy Button */}
                         <TouchableOpacity style={styles.buyButton} onPress={handleBuy}>
-                            <Text style={styles.buyButtonText}>ซื้อ</Text>
+                            <Text style={styles.buyButtonText}>ซื้อสินค้า</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -168,14 +287,14 @@ export default function ProductDetailScreen() {
                 </ScrollView>
 
                 {/* 5. Bottom Navbar */}
-                <BuyerNavbar
+                {/* <BuyerNavbar
                     onHomePress={() => handleNavPress('home')}
                     onListPress={() => handleNavPress('list')}
                     onAddPress={() => handleNavPress('add')}
                     onNotifyPress={() => handleNavPress('notify')}
-                    onProfilePress={() => handleNavPress('profile')}
+                    onProfilePress={() => setActiveTab('profile')}
                     activeTab={activeTab}
-                />
+                /> */}
             </View>
         </SafeAreaView>
     )

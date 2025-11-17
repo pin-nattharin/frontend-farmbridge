@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback} from 'react'; // 🟢 1. Import useEffect
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -7,18 +7,16 @@ import {
     TouchableOpacity,
     SafeAreaView,
     Alert,
+    ActivityIndicator
 } from 'react-native';
 
 import { useRouter, useFocusEffect } from 'expo-router';
 import BuyerNavbar from '../../components/ui/BuyerNavbar';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // 🟢 2. Import AsyncStorage
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../../services/api';
 
-// --- (ลบ const buyerData ... ที่เป็นข้อมูลจำลองทิ้งไป) --- 
-
-// (Type ActiveTab เหมือนเดิม)
 type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
 
-// (ฟังก์ชัน getInitials เหมือนเดิม)
 const getInitials = (fullname: string): string => {
     if (!fullname) return '';
     const names = fullname.split(' ');
@@ -27,7 +25,6 @@ const getInitials = (fullname: string): string => {
     return `${firstNameInitial}${lastNameInitial}`;
 };
 
-// (Helper Component: InfoField เหมือนเดิม)
 const InfoField = ({ label, value }: { label: string; value: string }) => (
     <View style={styles.infoFieldContainer}>
         <Text style={styles.infoLabel}>{label}</Text>
@@ -35,31 +32,48 @@ const InfoField = ({ label, value }: { label: string; value: string }) => (
     </View>
 );
 
-// --- 3. หน้าจอโปรไฟล์หลัก ---
 const BuyerProfileScreen = () => {
 
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
-
-    // 🟢 3. สร้าง State มารับข้อมูลผู้ใช้
     const [buyerData, setBuyerData] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
-    // 🟢 4. ดึงข้อมูลจากเมื่อเปิดหน้า
     useFocusEffect(
         useCallback(() => {
             const loadUserData = async () => {
-                const userString = await AsyncStorage.getItem('user');
-                if (userString) {
-                    const userData = JSON.parse(userString);
-                    setBuyerData(userData);
-                    console.log("Profile data loaded:", userData);
-                } else {
-                    Alert.alert("Error", "ไม่พบข้อมูลผู้ใช้, กรุณาเข้าสู่ระบบใหม่");
+                setLoading(true);
+                try {
+                    const token = await AsyncStorage.getItem('userToken');
+                    
+                    if (!token) {
+                        Alert.alert("แจ้งเตือน", "กรุณาเข้าสู่ระบบก่อนใช้งาน");
+                        router.replace('/LoginScreen');
+                        return;
+                    }
+
+                    const response = await api.get('/auth/profile', {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    
+                    setBuyerData(response.data);
+
+                } catch (error: any) {
+                    console.error("Failed to load buyer data:", error);
+                    if (error.response && error.response.status === 401) {
+                        Alert.alert("Session หมดอายุ", "กรุณาเข้าสู่ระบบใหม่");
+                    } else {
+                        Alert.alert("ข้อผิดพลาด", "ไม่สามารถโหลดข้อมูลโปรไฟล์ได้");
+                    }
+                    await AsyncStorage.removeItem('userToken');
+                    await AsyncStorage.removeItem('userData');
                     router.replace('/LoginScreen');
+                } finally {
+                    setLoading(false);
                 }
             };
             loadUserData();
-        }, []) // Dependency array ของ useCallback
+        }, [])
     );
 
     const handleEditProfile = () => {
@@ -70,7 +84,6 @@ const BuyerProfileScreen = () => {
         router.push('/buyer/historyBuy');
     }
 
-    // 🟢 5. (แก้ไข) แก้ไข Logout ให้เคลียร์ AsyncStorage (เหมือน farmerProfile)
     const handleLogout = () => {
         Alert.alert(
             "ออกจากระบบ",
@@ -79,15 +92,20 @@ const BuyerProfileScreen = () => {
                 { text: "ยกเลิก", style: "cancel" },
                 {
                     text: "ออกจากระบบ",
-                    onPress: async () => { // 
-                        try {
-                            await AsyncStorage.removeItem('token');
-                            await AsyncStorage.removeItem('user');
-                            console.log("User logged out, token cleared.");
-                            router.replace('../home');
+                    onPress: async () => { 
+                       try {
+                            const token = await AsyncStorage.getItem('userToken');
+                            if (token) {
+                                await api.post('/auth/logout', {}, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                }).catch(() => {});
+                            }
+                            await AsyncStorage.removeItem('userToken');
+                            await AsyncStorage.removeItem('userData');
+                            router.replace('/LoginScreen');
                         } catch (e) {
-                             console.error("Failed to clear async storage", e);
-                             router.replace('../home');
+                             console.error("Logout failed", e);
+                             router.replace('/LoginScreen');
                         }
                     },
                     style: "destructive"
@@ -96,7 +114,6 @@ const BuyerProfileScreen = () => {
         );
     };
 
-    // (ฟังก์ชัน handleNavPress เหมือนเดิม)
     const handleNavPress = (tab: ActiveTab) => {
         setActiveTab(tab);
         if (tab === 'home') {
@@ -109,28 +126,33 @@ const BuyerProfileScreen = () => {
             router.replace('/buyer/notificationDemand');
         }
     };
-    
-    // 🟢 6. เพิ่ม Loading Screen
-    if (!buyerData) {
+
+    // ✅ 1. เช็ค Loading ก่อน (สำคัญมาก ห้ามเอาไว้หลัง const initials)
+    if (loading) {
         return (
             <SafeAreaView style={styles.safeArea}>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <Text>กำลังโหลดข้อมูล...</Text>
+                    <ActivityIndicator size="large" color="#0056b3" />
+                    <Text style={{ marginTop: 10, color: '#666' }}>กำลังโหลดข้อมูล...</Text>
                 </View>
             </SafeAreaView>
         );
     }
 
-    // 🟢 7. (เหมือนเดิม) แต่ตอนนี้จะใช้ข้อมูลจริงจาก state
+    // ✅ 2. เช็คว่ามีข้อมูลจริงหรือไม่
+    if (!buyerData) {
+        return null; 
+    }
+
+    // ✅ 3. คำนวณค่าต่างๆ หลังจากมั่นใจว่ามีข้อมูลแล้วเท่านั้น
     const initials = getInitials(buyerData.fullname);
-    const firstName = buyerData.fullname.split(' ')[0] || '';
-    const lastName = buyerData.fullname.split(' ')[1] || '';
+    const firstName = buyerData.fullname ? buyerData.fullname.split(' ')[0] : '';
+    const lastName = buyerData.fullname && buyerData.fullname.split(' ').length > 1 ? buyerData.fullname.split(' ')[1] : '';
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.contentWrapper}>
                 <ScrollView style={styles.container}>
-                    {/* (ส่วน UI ทั้งหมดเหมือนเดิม แต่ตอนนี้จะแสดงข้อมูลจริง) */}
                     <View style={styles.headerBackground}>
                         <Text style={styles.headerTitle}>โปรไฟล์</Text>
                     </View>
@@ -155,9 +177,10 @@ const BuyerProfileScreen = () => {
                             <Text style={styles.infoBoxTitle}>ข้อมูลส่วนตัว</Text>
                             <InfoField label="First Name" value={firstName} />
                             <InfoField label="Last Name" value={lastName} />
-                            <InfoField label="Email Address" value={buyerData.email} />
-                            
-                            <InfoField label="Phone" value={buyerData.phone} />
+                            <InfoField label="Email Address" value={buyerData.email || '-'} />
+                            <InfoField label="Phone" value={buyerData.phone || '-'} />
+                            {/* แสดงที่อยู่ถ้ามี */}
+                            <InfoField label="Address" value={buyerData.address || '-'} />
                         </View>
 
                         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -172,7 +195,7 @@ const BuyerProfileScreen = () => {
                     onListPress={() => handleNavPress('list')}
                     onAddPress={() => handleNavPress('add')}
                     onNotifyPress={() => handleNavPress('notify')}
-                    onProfilePress={() => handleNavPress('profile')}
+                    onProfilePress={() => setActiveTab('profile')}
                     activeTab={activeTab}
                 />
             </View>
