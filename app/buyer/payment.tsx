@@ -11,8 +11,7 @@ import {
   TextInput,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
-import { Ionicons } from '@expo/vector-icons'; 
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 
 const PaymentScreen = () => {
   const router = useRouter();
@@ -20,28 +19,29 @@ const PaymentScreen = () => {
   // ✅ 1. รับข้อมูลจากหน้า Product Detail
   const params = useLocalSearchParams();
   
-  // แปลงข้อมูลที่รับมา (เพราะ router params มักเป็น string)
+  // ⚠️ สำคัญ: ต้องรับ listing_id มาด้วย
+  const listing_id = params.listing_id as string; 
+  
   const product_name = params.product_name as string || 'สินค้า';
   const price_per_unit = parseFloat(params.price_per_unit as string) || 0;
   const seller_location = params.seller_location as string || '-';
   const product_image = params.image_url as string || 'https://via.placeholder.com/150';
   const unit = params.unit as string || 'กก.';
-  const pickup_date_raw = params.pickup_date as string; // วันที่นัดรับ
+  const pickup_date_raw = params.pickup_date as string; 
 
-  // แปลงวันที่ให้สวยงาม
+  // แปลงวันที่เป็น พ.ศ.
   let formattedPickupDate = 'ไม่ระบุ';
   if (pickup_date_raw) {
       const dateObj = new Date(pickup_date_raw);
       const day = dateObj.getDate();
       const month = dateObj.toLocaleDateString('th-TH', { month: 'long' });
-      const year = dateObj.getFullYear() + 543; // บวก 543 เป็น พ.ศ.
+      const year = dateObj.getFullYear() + 543; 
       formattedPickupDate = `${day} ${month} ${year}`;
   }
 
   const [weightInput, setWeightInput] = useState('');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  // ✅ 2. คำนวณราคารวมแบบ Real-time
   const quantity = parseFloat(weightInput) || 0;
   const totalAmount = quantity * price_per_unit;
 
@@ -49,7 +49,8 @@ const PaymentScreen = () => {
         router.back();
   };
 
-  const handlePayment = () => {
+  // ฟังก์ชันไปหน้าเลือกวิธีชำระเงิน
+  const handleToPaymentMethod = () => {
     // Validation
     if (!weightInput.trim() || quantity <= 0) {
       Alert.alert('โปรดระบุจำนวน', `กรุณากรอกจำนวน ${unit} ที่ต้องการซื้อ`);
@@ -61,20 +62,16 @@ const PaymentScreen = () => {
       return;
     }
 
-    // จำลองการจ่ายเงินสำเร็จ
-    console.log('Payment Confirmed:', {
-      product: product_name,
-      quantity: quantity,
-      total: totalAmount
-    });
-
-    // ไปหน้า Success พร้อมส่งข้อมูลสรุป
+    // ✅ ส่งข้อมูลไปหน้า paymentMethod (รวมถึง listing_id และ quantity)
     router.push({
-      pathname: '/buyer/paymentSuccess',
+      pathname: '/buyer/paymentMethod',
       params: {
-        pickup_code: `CODE-${Math.floor(Math.random() * 10000)}`, // สร้าง Code จำลอง
-        pickup_date: selectedDate,
-        total_amount: totalAmount.toLocaleString(),
+        listing_id: listing_id, // 👈 ส่ง ID สินค้า
+        quantity: quantity.toString(), // 👈 ส่งจำนวน
+        total_amount: totalAmount.toString(),
+        pickup_date: selectedDate, // ส่งวันที่รับ (พ.ศ.)
+        // ส่งข้อมูลอื่นไปแสดงผลด้วยก็ได้
+        product_name: product_name
       },
     });
   };
@@ -86,10 +83,9 @@ const PaymentScreen = () => {
         </TouchableOpacity>
                       
       <Stack.Screen options={{ headerShown: false }} />
-      <Text style={styles.pageTitle}>การชำระเงิน</Text>
+      <Text style={styles.pageTitle}>รายละเอียดคำสั่งซื้อ</Text>
       
       <ScrollView style={styles.container}>
-        {/* --- การ์ดสินค้า --- */}
         <View style={styles.card}>
           <View style={styles.itemHeader}>
             <Image source={{ uri: product_image }} style={styles.itemImage} />
@@ -105,7 +101,6 @@ const PaymentScreen = () => {
           
           <View style={styles.divider} />
 
-          {/* ช่องกรอกจำนวน */}
           <Text style={styles.inputLabel}>จำนวน ({unit}) ที่ต้องการซื้อ</Text>
           <TextInput
             style={styles.input}
@@ -116,7 +111,6 @@ const PaymentScreen = () => {
             onChangeText={setWeightInput}
           />
 
-        {/* เลือกวันรับสินค้า (แสดงวันเดียวตามที่คนขายระบุ) */}
         <View style={styles.selectionRow}></View>
           <Text style={styles.dateHeader}>วันที่สะดวกเข้าไปรับสินค้า</Text>
           <View style={styles.dateRow}>
@@ -134,7 +128,7 @@ const PaymentScreen = () => {
         </View>
         </View>
 
-        {/* --- สรุปยอด --- */}
+        {/* สรุปยอด */}
         <View style={styles.summaryBox}>
             <Text style={styles.summaryTitle}>ข้อมูลการชำระเงิน</Text>
             <View style={styles.summaryRow}>
@@ -147,9 +141,9 @@ const PaymentScreen = () => {
             </View>
         </View>
 
-        {/* --- ปุ่มชำระเงิน --- */}
-        <TouchableOpacity style={styles.buttonSolid} onPress={handlePayment}>
-          <Text style={styles.buttonSolidText}>ยืนยันการชำระเงิน</Text>
+        {/* ปุ่มไปชำระเงิน */}
+        <TouchableOpacity style={styles.buttonSolid} onPress={handleToPaymentMethod}>
+          <Text style={styles.buttonSolidText}>ไปชำระเงิน</Text>
         </TouchableOpacity>
 
         <View style={{height: 50}} />

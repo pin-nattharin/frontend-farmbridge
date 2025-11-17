@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router'; 
+import { useRouter, useLocalSearchParams } from 'expo-router'; 
+import api from '../../services/api'; // ✅ Import API
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ----------------------------------------------------
 // DUMMY DATA และ Types
@@ -126,18 +128,61 @@ const PaymentOption: React.FC<PaymentOptionProps> = ({ option, isSelected, onSel
 
 export default function PaymentMethodScreen() {
     const router = useRouter();
+    const { listing_id, quantity, total_amount, pickup_date } = useLocalSearchParams();
+
+    const totalPrice = parseFloat(total_amount as string) || 0;
+
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>('bank_transfer'); 
     const [isLoading, setIsLoading] = useState(false); 
 
-    const totalPrice = 450; 
-
-    const handleConfirmPayment = () => {
+    const handleConfirmPayment = async () => {
         setIsLoading(true); 
         
-        setTimeout(() => {
-            setIsLoading(false); 
-            router.push('/buyer/paymentSuccess');
-        }, 3000); 
+        try {
+            // 1. เตรียมข้อมูล (แปลง String เป็น Number ให้ชัดเจน)
+            const payload = {
+                listing_id: Number(listing_id), // ✅ แปลงเป็นตัวเลข
+                quantity: Number(quantity),     // ✅ แปลงเป็นตัวเลข
+                pickup_slot: pickup_date        // ส่งไปเป็น String ได้เลย
+            };
+
+            // 🔍 DEBUG: ดูว่าส่งอะไรไปบ้าง (ดูใน Terminal)
+            console.log("🚀 Sending Order Payload:", payload);
+
+            if (!payload.listing_id || !payload.quantity) {
+                throw new Error("ข้อมูลสินค้าไม่ครบถ้วน (ID หรือ จำนวนเป็นศูนย์)");
+            }
+
+            // 2. หน่วงเวลา 3 วินาที
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            const token = await AsyncStorage.getItem('userToken');
+            if (!token) throw new Error("กรุณาเข้าสู่ระบบใหม่");
+
+            // 3. ยิง API สร้างออเดอร์
+            const response = await api.post('/orders', payload, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            const order = response.data.order; 
+
+            // 4. ไปหน้าสำเร็จ
+            router.replace({
+                pathname: '/buyer/paymentSuccess',
+                params: {
+                    pickup_code: order.confirmation_code, 
+                    pickup_date: pickup_date,
+                    total_amount: total_amount
+                }
+            });
+
+        } catch (error: any) {
+            console.error("Order Failed:", error);
+            const msg = error.response?.data?.message || "เกิดข้อผิดพลาดในการสั่งซื้อ";
+            Alert.alert("ล้มเหลว", msg);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
