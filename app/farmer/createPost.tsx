@@ -158,7 +158,7 @@ export default function CreatePostScreen() {
       unit: 'กก.',
     };
     try {
-      await api.post('/api/listings', postData); 
+      await api.post('/listings', postData); 
       setIsLoading(false);
       Alert.alert('โพสต์สำเร็จ!', 'ข้อมูลประกาศของคุณถูกบันทึกแล้ว');
       router.back(); 

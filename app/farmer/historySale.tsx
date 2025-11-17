@@ -17,7 +17,7 @@ export default function HistorySaleScreen() {
         try {
           setIsLoading(true);
           // (เรียก API ที่ถูกต้องจาก listing.routes.js)
-          const response = await api.get('/api/listings/my-listings'); 
+          const response = await api.get('/listings/my-listings'); 
           setListings(response.data);
         } catch (err: any) {
           console.error("Failed to fetch listings:", err.response?.data || err.message);

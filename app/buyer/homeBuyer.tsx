@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -8,20 +8,36 @@ import MarketingBanner from '../../components/ui/MarketingBanner';
 import CustomDropdown from '../../components/ui/Dropdown'; 
 import ProductCard from '../../components/ui/ProductCard'; 
 import BuyerNavbar from '../../components/ui/BuyerNavbar'; // แก้ Import เป็น BuyerNavbar
+import api from '../../services/api';
+
+// Interface สำหรับข้อมูลสินค้า
+interface Listing {
+    id: string;
+    product_name: string;
+    price_per_unit: number;
+    unit: string;
+    grade: string | null;
+    image_url: string[] | null;
+    seller: {
+        fullname: string;
+        address: string;
+    };
+    distance_km: number | null;
+}
 
 // ----------------------------------------------------
 // ข้อมูลจำลอง (DUMMY DATA) 
 // ----------------------------------------------------
 const typeItems = [
-    { label: 'ประเภท', value: 'all' },
-    { label: 'ทุเรียน', value: 'durian' },
-    { label: 'มะม่วง', value: 'mango' },
-    { label: 'องุ่น', value: 'grape' },
-    { label: 'มังคุด', value: 'mangosteen' },
+    { label: 'ทุกประเภท', value: 'all' },
+    { label: 'ทุเรียน', value: 'ทุเรียน' },
+    { label: 'มะม่วง', value: 'มะม่วง' },
+    { label: 'องุ่น', value: 'องุ่น' },
+    { label: 'มังคุด', value: 'มังคุด' },
 ];
 
 const areaItems = [
-    { label: 'พื้นที่', value: 'all' },
+    { label: 'ทุกพื้นที่', value: 'all' },
     { label: '5 กม.', value: '5' },     
     { label: '20 กม.', value: '20' },    
     { label: '30 กม.', value: '30' },
@@ -30,18 +46,10 @@ const areaItems = [
 
 const priceItems = [
     { label: 'ราคา', value: 'all' },
-    { label: 'ต่ำ-สูง', value: 'low-high' },
-    { label: 'สูง-ต่ำ', value: 'high-low' },
+    { label: 'ต่ำ-สูง', value: 'price_asc' },
+    { label: 'สูง-ต่ำ', value: 'price_desc' },
 ];
 
-const dummyProducts = [
-    { id: '1', productName: 'มะม่วงน้ำดอกไม้', price: 30, unit: 'กก.', grade: 'เกรด C', distance: '2.5 กม.', imageUrl: 'https://picsum.photos/id/66/300/200' },
-    { id: '2', productName: 'ทุเรียนหมอนทอง', price: 95, unit: 'กก.', grade: 'เกรด C', distance: '10 กม.', imageUrl: 'https://picsum.photos/id/1080/300/200' },
-    { id: '3', productName: 'องุ่นเขียวไร้เมล็ด', price: 90, unit: 'กก.', grade: 'เกรด C', distance: '23.2 กม.', imageUrl: 'https://picsum.photos/id/166/300/200' },
-    { id: '4', productName: 'มะม่วงเขียวเสวย', price: 85, unit: 'กก.', grade: 'เกรด C', distance: '21.3 กม.', imageUrl: 'https://picsum.photos/id/1025/300/200' },
-    { id: '5', productName: 'มังคุดเกรดพรีเมียม', price: 120, unit: 'กก.', grade: 'เกรด A', distance: '1.1 กม.', imageUrl: 'https://picsum.photos/id/237/300/200' },
-    { id: '6', productName: 'เงาะโรงเรียน', price: 75, unit: 'กก.', grade: 'เกรด B', distance: '5.0 กม.', imageUrl: 'https://picsum.photos/id/145/300/200' },
-];
 
 // ----------------------------------------------------
 // HOMESCREEN COMPONENT
@@ -52,6 +60,11 @@ const HomeScreen: React.FC = () => {
     const router = useRouter();
 
     const [activeTab, setActiveTab] = useState<'home' | 'list' | 'add' | 'notify' | 'profile'>('home');
+
+    // --- State สำหรับข้อมูลจริง ---
+    const [listings, setListings] = useState<Listing[]>([]); 
+    const [isFetching, setIsFetching] = useState(true);
+    const IMAGE_BASE_URL = 'http://10.0.2.2:3000';
 
     // Dropdown States
     const [typeOpen, setTypeOpen] = useState(false);
@@ -68,17 +81,64 @@ const HomeScreen: React.FC = () => {
 
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
+    // --- ฟังก์ชันดึงข้อมูล (เหมือน index.tsx) ---
+    const fetchListings = useCallback(async () => {
+        setIsFetching(true);
+        try {
+            const params: any = { status: 'available' };
+            
+            if (typeValue && typeValue !== 'all') {
+                params.product_name = typeValue;
+            }
+            // ถ้าจะใส่ logic distance เพิ่มภายหลัง ให้ใส่ตรงนี้
+
+            const response = await api.get('/listings/all', { params }); 
+            let data: Listing[] = response.data;
+
+            if (areaValue && areaValue !== 'all') {
+                const maxDistance = parseInt(areaValue);
+                data = data.filter(item => {
+                    // ถ้า distance_km เป็น null ให้ถือว่าผ่าน หรือไม่ผ่านแล้วแต่ Policy (ที่นี่ให้ไม่ผ่าน)
+                    return item.distance_km !== null && item.distance_km <= maxDistance;
+                });
+            }
+
+            if (priceValue && priceValue !== 'all') {
+                if (priceValue === 'price_asc') {
+                    // น้อยไปมาก
+                    data.sort((a, b) => a.price_per_unit - b.price_per_unit);
+                } else if (priceValue === 'price_desc') {
+                    // มากไปน้อย
+                    data.sort((a, b) => b.price_per_unit - a.price_per_unit);
+                }
+            }
+            setListings(data);
+            
+        } catch (error: any) {
+            console.error("Failed to fetch listings:", error);
+        } finally {
+            setIsFetching(false);
+        }
+    }, [typeValue, areaValue, priceValue]);
+
+    useEffect(() => {
+        fetchListings();
+    }, [fetchListings]);
+
     const handleSearch = (query: string) => {
         Alert.alert("ค้นหาสำเร็จ", `คุณค้นหา: "${query}"`);
-        console.log("User searched for:", query);
     };
 
     const handleBannerPress = () => {
-        router.push('/farmer/RegisterSellerScreen'); 
+        router.push('/buyer/RegisterBuyerScreen'); 
     };
 
-    const handleProductPress = (productName: string) => {
-        Alert.alert("รายละเอียดสินค้า", `เปิดหน้า: ${productName}`);
+    // --- 1. แก้ไขฟังก์ชันนี้ ---
+    const handleProductPress = (productId: string) => {
+        router.push({
+            pathname: '/productDetail', 
+            params: { id: productId }
+        });
     };
 
     const onOpenType = () => {
@@ -100,11 +160,11 @@ const HomeScreen: React.FC = () => {
     const handleNavPress = (tab: 'home' | 'list' | 'add' | 'notify' | 'profile') => {
         setActiveTab(tab);
         if (tab === 'home') {
-            router.push('./index');
-        } else if (tab === 'add') {
-             router.push('/buyer/createDemand'); // ผู้ซื้อสร้าง Demand
+            //หน้าเดิม
         } else if (tab === 'list') {
-             router.push('/buyer/historyDemand'); 
+             router.push('/buyer/historyDemand'); // ผู้ซื้อสร้าง Demand
+        } else if (tab === 'add') {
+             router.push('/buyer/createDemand'); 
         }
         else if (tab === 'notify') {
              router.push('/buyer/notificationDemand'); 
@@ -191,19 +251,35 @@ const HomeScreen: React.FC = () => {
 
                     {/* --- 5. Product List Grid --- */}
                     <FlatList
-                        data={dummyProducts}
+                        data={listings}
                         keyExtractor={item => item.id}
-                        renderItem={({ item }) => (
+                        renderItem={({ item }) => {
+
+                            const imagePath = (item.image_url && item.image_url.length > 0) ? item.image_url[0] : null;
+                            let fullImageUrl = 'https://via.placeholder.com/300';
+
+                            if (imagePath) {
+                                if (imagePath.startsWith('http') || imagePath.startsWith('https')) {
+                                    // กรณี 1: เป็น URL เต็มอยู่แล้ว (เช่น ลิงก์จากเว็บอื่น หรือ Cloud) -> ใช้ได้เลย
+                                    fullImageUrl = imagePath;
+                                } else {
+                                    // กรณี 2: เป็น Relative Path (เช่น /uploads/img.jpg) -> ต้องต่อกับ Base URL ของ Server
+                                    fullImageUrl = `${IMAGE_BASE_URL}${imagePath}`;
+                                }
+                            }
+                            
+                            return (
                             <ProductCard
-                                productName={item.productName}
-                                price={item.price}
+                                productName={item.product_name}
+                                price={item.price_per_unit}
                                 unit={item.unit}
                                 grade={item.grade}
-                                distance={item.distance}
-                                imageUrl={item.imageUrl}
-                                onPress={() => handleProductPress(item.productName)}
+                                distance={typeof item.distance_km === 'number' ? `${item.distance_km.toFixed(1)} กม.` : 'ไม่ระบุ'}
+                                    imageUrl={fullImageUrl}
+                                    onPress={() => handleProductPress(item.id)}
                             />
-                        )}
+                            );
+                        }}
                         numColumns={2} 
                         contentContainerStyle={styles.productList}
                         scrollEnabled={false} 
@@ -211,7 +287,7 @@ const HomeScreen: React.FC = () => {
 
                 </ScrollView>
                 
-                {/* --- 6. Bottom Navbar Component (เรียกใช้ BuyerNavbar) --- */}
+                {/* --- 6. Bottom Navbar Component (เรียกใช้ FarmerNavbar) --- */}
                 <BuyerNavbar
                     onHomePress={() => handleNavPress('home')}
                     onListPress={() => handleNavPress('list')} 
@@ -227,7 +303,7 @@ const HomeScreen: React.FC = () => {
 };
 
 // ----------------------------------------------------
-// Styles สำหรับหน้าจอทดสอบ
+// Styles (คงเดิม)
 const styles = StyleSheet.create({
     fullScreen: {
         flex: 1,

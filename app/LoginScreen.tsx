@@ -2,16 +2,17 @@ import { LinearGradient } from 'expo-linear-gradient'; // สำหรับพ�
 import { useRouter } from 'expo-router'; // สำหรับการนำทาง
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้อง ***
 import Button from '../components/ui/Button';
 import RoundedInput from '../components/ui/RoundedInput';
 import { registerBaseStyles } from './farmer/RegisterSellerScreen';
-import api from '../services/api';
+import api, { setAuthToken } from '../services/api';
+import { useAuth } from './context/AuthContext';
 
 function LoginScreen() {
   const router = useRouter(); // เรียกใช้ Router
+  const { login } = useAuth();
 
   // 4. เพิ่ม States สำหรับเก็บข้อมูล
   const [email, setEmail] = useState('');
@@ -36,12 +37,17 @@ function LoginScreen() {
       // 6. Login สำเร็จ (ได้ token)
       const { token, user } = response.data;
 
+      await login(token, user);
+      
       // 7. เก็บ Token ลงในเครื่อง
-      await AsyncStorage.setItem('token', token);
-      await AsyncStorage.setItem('user', JSON.stringify(user));
+      /* await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('user', JSON.stringify(user)); */
+
+      //setAuthToken(token);
 
       // 8. นำทางไปหน้าหลัก (เช่น Dashboard)
       Alert.alert('สำเร็จ', 'เข้าสู่ระบบเรียบร้อย');
+
       // *** เปลี่ยน '/(tabs)/dashboard' ไปยัง Path ที่ถูกต้องของคุณ ***
       if (user.role === 'farmer') {
         // Back-end บอกว่าเป็น farmer (ซึ่งมาจากการมี farmer_doc_url)
@@ -51,8 +57,7 @@ function LoginScreen() {
         router.replace('/buyer/homeBuyer'); // 👈 ไปหน้า homeBuyer (อ้างอิงจาก buyerProfile.tsx)
       }
 
-    } catch (err) {
-      // 9. Login ไม่สำเร็จ
+    } catch (err: any) {
       console.error(err.response ? err.response.data : err);
       const message = err.response?.data?.message || 'เกิดข้อผิดพลาด';
       Alert.alert('เข้าสู่ระบบไม่สำเร็จ', message);

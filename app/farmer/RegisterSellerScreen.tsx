@@ -154,7 +154,7 @@ const RegisterSellerScreen: React.FC = () => {
 
     try {
       // 🟢 5. เรียก API /register
-      const response = await api.post('/api/auth/register', {
+      const response = await api.post('/auth/register', {
         fullname,
         email,
         password,

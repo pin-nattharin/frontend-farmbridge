@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,20 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Dimensions,
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 
 import { useRouter } from 'expo-router'; // <-- 1. Import useRouter
 import FarmerNavbar from '../../components/ui/FarmerNavbar';
 import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
+import {
+  getFarmerDashboard,
+  getDashboardStats,
+  DashboardStatsResponse
+} from '../../services/dashboardService';
 
 const { width } = Dimensions.get('window');
 
@@ -32,38 +40,117 @@ const chartConfig = {
   paddingLeft: 0,
 };
 
-const allChartData = {
-  'มะม่วง': {
-    labels: ['ม.ค.', 'มี.ค.', 'พ.ค.', 'ก.ค.', 'ก.ย.', 'พ.ย.'],
-    datasets: [{ data: [25, 27, 30, 28, 26, 30] }],
-  },
-  'ทุเรียน': {
-    labels: ['ม.ค.', 'มี.ค.', 'พ.ค.', 'ก.ค.', 'ก.ย.', 'พ.ย.'],
-    datasets: [{ data: [90, 95, 110, 120, 100, 98] }],
-  },
-  'มังคุด': {
-    labels: ['ม.ค.', 'มี.ค.', 'พ.ค.', 'ก.ค.', 'ก.ย.', 'พ.ย.'],
-    datasets: [{ data: [40, 42, 45, 41, 38, 43] }],
-  },
-  'องุ่น': {
-    labels: ['ม.ค.', 'มี.ค.', 'พ.ค.', 'ก.ค.', 'ก.ย.', 'พ.ย.'],
-    datasets: [{ data: [100, 105, 95, 110, 115, 120] }],
-  },
-};
-
 const DashboardScreen = () => {
   const router = useRouter();
+  const { token, isLoading: authLoading } = useAuth();
 
-  // --- 1. State สำหรับ Dropdown ---
-  const [selectedChart, setSelectedChart] = useState('มะม่วง'); // ค่าเริ่มต้น
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [globalStats, setGlobalStats] = useState<DashboardStatsResponse | null>(null);
+
+  // 1. State เก็บข้อมูล Metrics (ตัวเลขรายได้, ขายล่าสุด)
+  const [metrics, setMetrics] = useState({
+    totalRevenue: 0,
+    increasePercent: 0,
+    latestSale: null as any,
+  });
+  
+  // 2. State เก็บข้อมูลกราฟ (แปลงมาจาก API)
+  const [chartDataMap, setChartDataMap] = useState<any>({}); 
+  const [selectedChart, setSelectedChart] = useState('มะม่วง'); // Default
   const [isDropdownVisible, setDropdownVisible] = useState(false);
-
-  const currentChartData =
-    allChartData[selectedChart as keyof typeof allChartData] ||
-    allChartData['มะม่วง'];
 
   // รายการตัวเลือก (ตามรูป)
   const chartOptions = ['มะม่วง', 'ทุเรียน', 'มังคุด', 'องุ่น'];
+
+  const fetchDashboardData = useCallback(
+    async ({ showScreenLoader = false }: { showScreenLoader?: boolean } = {}) => {
+      if (!token) {
+        setIsLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      setError(null);
+      if (showScreenLoader) {
+        setIsLoading(true);
+      }
+
+      try {
+        const [farmerDashboard, statsData] = await Promise.all([
+          getFarmerDashboard(),
+          getDashboardStats()
+        ]);
+        const { metrics, priceTrends } = farmerDashboard;
+
+        // 1. อัปเดต Metrics
+        setMetrics({
+          totalRevenue: metrics.totalRevenue || 0,
+          increasePercent: metrics.increasePercent || 0,
+          latestSale: metrics.latestSale,
+        });
+
+        // 2. แปลงข้อมูลกราฟ (จาก { date, price } -> { labels, datasets })
+        const formattedCharts: any = {};
+        
+        // ข้อมูลสำรองเผื่อกราฟว่าง
+        const defaultChart = {
+          labels: ['-'],
+          datasets: [{ data: [0] }]
+        };
+
+        Object.keys(priceTrends || {}).forEach(product => {
+          const trends = (priceTrends[product] || []) as Array<{ date: string; price: number }>;
+          
+          if (trends && trends.length > 0) {
+            formattedCharts[product] = {
+              // แปลงวันที่เป็นชื่อเดือน เช่น "ม.ค.", "ก.พ."
+              labels: trends.map((t: any) => {
+                const d = new Date(t.date);
+                return d.toLocaleDateString('th-TH', { month: 'short' });
+              }),
+              datasets: [{ data: trends.map((t: any) => t.price) }]
+            };
+          } else {
+            formattedCharts[product] = defaultChart;
+          }
+        });
+
+        setChartDataMap(formattedCharts);
+        setGlobalStats(statsData);
+
+      } catch (error) {
+        console.error('Fetch Dashboard Error:', error);
+        setError('ไม่สามารถโหลดข้อมูลแดชบอร์ดได้');
+      } finally {
+        if (showScreenLoader) {
+          setIsLoading(false);
+        }
+        setRefreshing(false);
+      }
+    },
+    [token]
+  );
+
+  // เรียกใช้ตอนเปิดหน้าจอ
+  useEffect(() => {
+    if (authLoading) return;
+    fetchDashboardData({ showScreenLoader: true });
+  }, [authLoading, fetchDashboardData]);
+
+  // ฟังก์ชัน Pull-to-Refresh
+  const onRefresh = () => {
+    if (!token) return;
+    setRefreshing(true);
+    fetchDashboardData();
+  };
+
+  // เลือกกราฟที่จะแสดง (ถ้าไม่มีข้อมูลให้ใช้ Default)
+  const currentChartData = chartDataMap[selectedChart] || {
+    labels: ['No Data'],
+    datasets: [{ data: [0] }]
+  };
 
   // ฟังก์ชันเมื่อเลือกไอเท็ม
   const handleSelectOption = (option: string) => {
@@ -91,6 +178,16 @@ const DashboardScreen = () => {
     router.push('/farmer/farmerProfile'); // (แก้ Path ให้ถูก)
   };
 
+  if (authLoading || (isLoading && !refreshing)) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingWrapper}>
+          <ActivityIndicator size="large" color="#0056b3" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
 
@@ -100,21 +197,82 @@ const DashboardScreen = () => {
                         </TouchableOpacity>
 
       <ScrollView style={styles.container}>
+      <ScrollView 
+        style={styles.container}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* --- Header --- */}
         <View style={styles.header}>
           <Text style={styles.title}>แดชบอร์ด</Text>
         </View>
 
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+{/* 
+        {globalStats && (
+          <View style={styles.globalStatsCard}>
+            <Text style={styles.globalStatsTitle}>ภาพรวมระบบ</Text>
+            <View style={styles.globalStatRow}>
+              <Text style={styles.globalStatLabel}>ยอดขายรวม</Text>
+              <Text style={styles.globalStatValue}>
+                {globalStats.metrics.total_sales_value.toLocaleString()} บาท
+              </Text>
+            </View>
+            <View style={styles.globalStatRow}>
+              <Text style={styles.globalStatLabel}>รายการขายสำเร็จ</Text>
+              <Text style={styles.globalStatValue}>
+                {globalStats.metrics.total_transactions.toLocaleString()} รายการ
+              </Text>
+            </View>
+            <View style={styles.globalStatRow}>
+              <Text style={styles.globalStatLabel}>ราคาเฉลี่ย</Text>
+              <Text style={styles.globalStatValue}>
+                {globalStats.metrics.average_price.toLocaleString()} บาท/กก.
+              </Text>
+            </View>
+            <View style={styles.globalStatRow}>
+              <Text style={styles.globalStatLabel}>ของเสียลดลง</Text>
+              <Text style={styles.globalStatValue}>
+                {globalStats.metrics.waste_reduced_kg.toLocaleString()} กก.
+              </Text>
+            </View>
+            <View style={styles.globalStatDivider} />
+            <View style={styles.globalStatRow}>
+              <Text style={styles.globalStatLabel}>สินค้าพร้อมขาย</Text>
+              <Text style={styles.globalStatValue}>
+                {globalStats.totals.activeListings.toLocaleString()} รายการ
+              </Text>
+            </View>
+            <View style={styles.globalStatRow}>
+              <Text style={styles.globalStatLabel}>เกษตรกรในระบบ</Text>
+              <Text style={styles.globalStatValue}>
+                {globalStats.totals.totalFarmers.toLocaleString()} ราย
+              </Text>
+            </View>
+            <View style={styles.globalStatRow}>
+              <Text style={styles.globalStatLabel}>ผู้ซื้อในระบบ</Text>
+              <Text style={styles.globalStatValue}>
+                {globalStats.totals.totalBuyers.toLocaleString()} ราย
+              </Text>
+            </View>
+          </View>
+        )} */}
+
         {/* --- Metrics Cards --- */}
         <View style={styles.metricsRow}>
-          {/* (คงเดิม) */}
           <View style={styles.metricCard}>
             <Text style={styles.metricLabel}>รายได้ทั้งหมด</Text>
-            <Text style={styles.metricValueBlue}>8,500 บาท</Text>
+            <Text style={styles.metricValueBlue}>
+              {metrics.totalRevenue.toLocaleString()} บาท
+            </Text>
           </View>
+
           <View style={[styles.metricCard, styles.metricCardGreenBg]}>
             <Text style={styles.metricLabel}>แสดงเป็นร้อยละ</Text>
-            <Text style={styles.metricValueGreen}>85%</Text>
+            <Text style={styles.metricValueGreen}>+{metrics.increasePercent}%</Text>
           </View>
         </View>
 
@@ -122,9 +280,15 @@ const DashboardScreen = () => {
         <View style={styles.recentSaleCard}>
           <View style={styles.recentSaleHeader}>
             <Text style={styles.recentSaleLabel}>ขายอะไรไปแล้วบ้าง</Text>
-            <Text style={styles.recentSaleAmount}>จำนวน 30 กก.</Text>
+            <Text style={styles.recentSaleAmount}>
+              {metrics.latestSale ? `จำนวน ${metrics.latestSale.quantity} กก.` : '-'}
+            </Text>
           </View>
-          <Text style={styles.recentSaleItem}>มะม่วง (เกรด C)</Text>
+          <Text style={styles.recentSaleItem}>
+            {metrics.latestSale 
+              ? `${metrics.latestSale.product_name} (เกรด ${metrics.latestSale.grade || '-'})`
+              : 'ยังไม่มีรายการขายสำเร็จ'}
+          </Text>
         </View>
 
         {/* --- Chart Section --- */}
@@ -135,7 +299,7 @@ const DashboardScreen = () => {
               style={styles.chartDropdownButton}
               onPress={() => setDropdownVisible(!isDropdownVisible)}
             >
-              <Text style={styles.chartDropdownText}>{selectedChart} ▾</Text>
+              <Text style={styles.chartDropdownText}>ราคาตลาด: {selectedChart} ▾</Text>
             </TouchableOpacity>
 
             {isDropdownVisible && (
@@ -166,15 +330,24 @@ const DashboardScreen = () => {
 
           {/* --- 5. แทนที่ Placeholder ด้วย LineChart --- */}
           <View style={styles.chartContainer}>
-            <LineChart
-              data={currentChartData}
-              width={width - 32} // (ลบ padding 16*2)
-              height={220}
-              chartConfig={chartConfig}
-              bezier // ทำให้เส้นโค้ง
-              style={styles.chart}
-            />
+            {currentChartData.datasets[0].data.length > 0 && currentChartData.labels.length > 0 ? (
+               <LineChart
+               data={currentChartData}
+               width={width - 32} // เต็มจอ ลบ padding
+               height={220}
+               chartConfig={chartConfig}
+               bezier
+               style={styles.chart}
+               // ป้องกัน error ถ้า data เป็น NaN
+               fromZero
+             />
+            ) : (
+              <View style={{height: 220, justifyContent: 'center', alignItems: 'center'}}>
+                <Text style={{color: '#999'}}>ไม่มีข้อมูลราคาตลาด</Text>
+              </View>
+            )}
           </View>
+
         </View>
       </ScrollView>
 
@@ -212,8 +385,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 40,
+    paddingBottom: 20,
+    paddingLeft: 130,
   },
   title: {
     fontSize: 24,
@@ -230,6 +404,44 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     marginTop: 16,
+  },
+  globalStatsCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  globalStatsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#0056b3',
+    marginBottom: 12,
+  },
+  globalStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  globalStatLabel: {
+    fontSize: 14,
+    color: '#555',
+  },
+  globalStatValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#003d80',
+  },
+  globalStatDivider: {
+    height: 1,
+    backgroundColor: '#e5e5e5',
+    marginVertical: 10,
   },
   metricCard: {
     width: '48%',
@@ -290,6 +502,19 @@ const styles = StyleSheet.create({
   recentSaleItem: {
     fontSize: 16,
     color: '#555',
+  },
+  errorBanner: {
+    backgroundColor: '#fdecea',
+    borderRadius: 10,
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#f5c2c7',
+  },
+  errorText: {
+    color: '#a12622',
+    fontSize: 14,
   },
   chartSection: {
     padding: 16,
@@ -358,6 +583,12 @@ const styles = StyleSheet.create({
   },
   chart: {
     borderRadius: 16, // <-- เพิ่ม
+  },
+  loadingWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
   },
   // (ลบ chartPlaceholderText)
 });

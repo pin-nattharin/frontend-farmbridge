@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react'; 
 import { Stack } from 'expo-router';
-// ⚠️ ยังคง Import Hooks ไว้ แต่จะไม่ถูกเรียกใช้
-import { useExpoPushToken } from '../hooks/useExpoPushToken'; 
-import { useNotificationListener } from '../hooks/useNotificationListener'; 
+import { AuthProvider } from './context/AuthContext';
+// ⚠️ เปลี่ยนมา Import Hook ของ Expo
+//import { useExpoPushToken } from '../hooks/useExpoPushToken'; 
+//import { useNotificationListener } from '../hooks/useNotificationListener'; 
 
 // Hook จำลอง/เชื่อมต่อ: ใช้สำหรับดึง JWT Token จริง
 const useAuth = () => {
@@ -17,16 +18,19 @@ const useAuth = () => {
 export default function RootLayout() {
     const { jwtToken, isLoggedIn } = useAuth(); 
 
-    // ❌ 1. คอมเมนต์การเรียกใช้ Hook ดึง/บันทึก EXPO PUSH Token ออก
-    // const expoPushToken = useExpoPushToken(jwtToken); 
+    // 1. เรียกใช้ Hook ดึง/บันทึก EXPO PUSH Token
+    // Hook นี้จะส่ง Expo Token ไปยัง Backend
+    //const expoPushToken = useExpoPushToken(jwtToken); 
 
-    // ❌ 2. คอมเมนต์การเรียกใช้ Hook จัดการ Listener ออก
-    // useNotificationListener(); 
+    // 2. เรียกใช้ Hook จัดการ Listener
+    // Listener นี้จะใช้ Expo Notifications SDK เพื่อรับการแจ้งเตือน
+    //useNotificationListener(); 
 
     // 💡 หากต้องการให้หน้าแรกแสดงผลตามที่คุณต้องการ:
     // คุณอาจต้องตั้งค่า isLoggedIn ให้เป็น true ชั่วคราว (หรือลบ Conditional Routing ที่ใช้ isLoggedIn ออก)
     
     return (
+        <AuthProvider>
         <Stack>
             {/* 🎯 จัด Index เป็นหน้าแรกสุด */}
             <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -62,5 +66,6 @@ export default function RootLayout() {
             <Stack.Screen name="home" options={{ headerShown: false }} /> 
             
         </Stack>
+        </AuthProvider>
     );
 }
