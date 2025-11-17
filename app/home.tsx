@@ -241,6 +241,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         // เพิ่ม paddingBottom เพื่อให้เนื้อหาส่วนล่างไม่ถูก Navbar บัง
         paddingBottom: 60, 
+        paddingTop: 50,
     },
     header: {
         fontSize: 22,

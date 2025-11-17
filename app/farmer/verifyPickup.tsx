@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 // --- (จำลอง) ข้อมูลรายการที่จะตรวจสอบ ---
 const mockItem = {
@@ -27,6 +28,10 @@ const VerifyPickupScreen = () => {
   const router = useRouter();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleBack = () => {
+    router.back();
+  };
 
   // ฟังก์ชันเมื่อกดปุ่ม "เสร็จสิ้น"
   const handleFinish = () => {
@@ -52,7 +57,11 @@ const VerifyPickupScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ title: 'ตรวจสอบรายการ' }} />
+
+      {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
+                        </TouchableOpacity>
 
       <Text style={styles.pageTitle}>ตรวจสอบรายการ</Text>
 
@@ -99,6 +108,13 @@ const VerifyPickupScreen = () => {
 
 // --- Stylesheet ---
 const styles = StyleSheet.create({
+  backButton: {
+        position: 'absolute', // ทำให้ปุ่มลอย
+        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        left: 15,
+        zIndex: 10, // ให้อยู่ด้านบนสุด
+        padding: 5,
+    },
   safeArea: {
     flex: 1,
     backgroundColor: '#f4f4f4',
@@ -176,9 +192,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#074E9F',
-    marginTop: 30,
-    marginBottom: 20,
-    marginLeft: 110,
+    marginTop: 70,
+    marginBottom: 10,
+    marginLeft: 100,
     paddingLeft: 20,
   },
 });

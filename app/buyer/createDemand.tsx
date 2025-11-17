@@ -15,7 +15,7 @@ import {
 import { Stack, useRouter } from 'expo-router';
 
 // (สมมติว่าคุณมีไฟล์ Dropdown ที่ path นี้)
-import CustomDropdown from '../../components/ui/Dropdown'; 
+import CustomDropdown from '../../components/ui/Dropdown';
 
 // --- [แก้ไข] นำเข้า Axios Instance และ useAuth ---
 import api from '../../services/api';
@@ -170,24 +170,24 @@ useEffect(() => {
           <TextInput
             style={styles.inputBox}
             placeholder="ระบุจำนวนที่ต้องการ (กก.)"
-            value={quantity_total}
-            onChangeText={setQuantity_Total}
+            value={quantity}
+            onChangeText={setQuantity}
             keyboardType="numeric"
-            editable={!isSubmitting}
+            editable={!isSubmitting} // --- [NEW] ---
           />
 
           {/* --- 4. ปุ่ม --- */}
           <View style={styles.buttonRow}>
-            <TouchableOpacity 
-              style={[styles.button, styles.buttonOutline]} 
+            <TouchableOpacity
+              style={[styles.button, styles.buttonOutline]}
               onPress={handleCancel}
               disabled={isSubmitting}
             >
               <Text style={styles.buttonOutlineText}>ยกเลิก</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.button, styles.buttonSolid, isSubmitting && styles.buttonDisabled]}
+
+            <TouchableOpacity
+              style={[styles.button, styles.buttonSolid, isSubmitting && styles.buttonDisabled]} // --- [NEW] ---
               onPress={handleConfirm}
               disabled={isSubmitting}
             >
@@ -220,6 +220,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 16,
     paddingTop: 24,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0056b3',
+    marginHorizontal: 16,
+    marginTop: 70,
+    marginBottom: 20,
+    textAlign: 'center',
   },
   card: {
     backgroundColor: 'white',
