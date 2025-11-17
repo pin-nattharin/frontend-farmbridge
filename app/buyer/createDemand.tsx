@@ -170,8 +170,8 @@ useEffect(() => {
           <TextInput
             style={styles.inputBox}
             placeholder="ระบุจำนวนที่ต้องการ (กก.)"
-            value={quantity}
-            onChangeText={setQuantity}
+            value={quantity_total}
+            onChangeText={setQuantity_Total}
             keyboardType="numeric"
             editable={!isSubmitting} // --- [NEW] ---
           />

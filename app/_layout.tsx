@@ -48,7 +48,8 @@ export default function RootLayout() {
             <Stack.Screen name="buyer/paymentSuccess" options={{ headerShown: false }} />
             <Stack.Screen name="buyer/RegisterBuyerScreen" options={{ headerShown: false }} />
             <Stack.Screen name="buyer/Profile" options={{ headerShown: false }} />
-            <Stack.Screen name="buyer/createDemand" options={{ headerShown: false }} /> 
+            <Stack.Screen name="buyer/createDemand" options={{ headerShown: false }} />
+            <Stack.Screen name="buyer/paymentMethod" options={{ headerShown: false }} /> 
             
             {/* Farmer Routes */}
             <Stack.Screen name="farmer/homeFarmer" options={{ headerShown: false }} />
