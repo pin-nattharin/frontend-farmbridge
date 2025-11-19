@@ -82,20 +82,32 @@ export default function NotificationScreen() {
     const fetchNotifications = async () => {
         if (!token) return;
         try {
-            const response = await api.get('/notifications');
-            
-            // ⭐️ แก้ไข: กรองเฉพาะ type === 'match' (สินค้าที่ผู้ซื้อ demand ไว้)
-            const matchNotifications = response.data.filter((item: NotificationItem) => item.type === 'match');
-            
-            setNotifications(matchNotifications);
-        } catch (error) {
-            console.error("Fetch Notifications Error:", error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
+        const response = await api.get('/notifications');
+        
+        // 1️⃣ เพิ่มบรรทัดนี้เพื่อดูข้อมูลดิบใน Terminal หรือ Debugger
+        console.log("Raw Notifications form API:", JSON.stringify(response.data, null, 2));
 
+        // 2️⃣ ลอง Comment บรรทัด Filter ออกชั่วคราว เพื่อดูว่ามีข้อมูลมาไหม (ไม่สน Type)
+        // const matchNotifications = response.data.filter((item: NotificationItem) => item.type === 'match');
+        
+        // 3️⃣ ถ้า Backend ส่ง type มาไม่ตรงเป๊ะ (เช่น 'Match' หรือ 'demand_match') ให้แก้เงื่อนไข หรือรับทั้งหมดไปก่อนเพื่อเทส
+        // ตัวอย่างการแก้ให้ยืดหยุ่นขึ้น (เช็คทั้งตัวเล็กตัวใหญ่)
+        const matchNotifications = response.data.filter((item: NotificationItem) => 
+            item.type && item.type.toLowerCase() === 'match'
+        );
+
+        // ถ้าต้องการแสดงทั้งหมดเพื่อเทส UI ให้ใช้บรรทัดนี้แทน:
+        // setNotifications(response.data); 
+        
+        setNotifications(matchNotifications);
+
+    } catch (error) {
+        console.error("Fetch Notifications Error:", error);
+    } finally {
+        setLoading(false);
+        setRefreshing(false);
+    }
+};
     // โหลดข้อมูลใหม่ทุกครั้งที่เข้ามาที่หน้านี้
     useFocusEffect(
         useCallback(() => {

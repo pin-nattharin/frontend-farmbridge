@@ -1,27 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
-import SearchBar from '../components/ui/SearchBar';
-import MarketingBanner from '../components/ui/MarketingBanner';
-import CustomDropdown from '../components/ui/Dropdown';
+import SearchBar from '../components/ui/SearchBar'; 
+import MarketingBanner from '../components/ui/MarketingBanner'; 
+import CustomDropdown from '../components/ui/Dropdown'; 
 import ProductCard from '../components/ui/ProductCard'; 
-import BottomNavbar from '../components/ui/BottomNavbar'; // *** 1. Import Navbar ***
+import BottomNavbar from '../components/ui/BottomNavbar'; 
+import api from '../services/api';
+import { useAuth } from './context/AuthContext';
 
-// ----------------------------------------------------
-// ข้อมูลจำลอง (DUMMY DATA) - แก้ไข Type ของ value เป็น string
-// ----------------------------------------------------
+// Interface สำหรับข้อมูลสินค้า
+interface Listing {
+    id: string;
+    product_name: string;
+    price_per_unit: number;
+    unit: string;
+    grade: string | null;
+    image_url: string[] | null;
+    seller: {
+        fullname: string;
+        address: string;
+    };
+    distance_km: number | null;
+    location_geom?: {
+        type: string;
+        coordinates: number[]; // [lng, lat]
+    };
+    distance?: number | null;
+}
 
-// 1. ข้อมูลสำหรับ Dropdown
 const typeItems = [
-    { label: 'ทุเรียน', value: 'durian' },
-    { label: 'มะม่วง', value: 'mango' },
-    { label: 'องุ่น', value: 'grape' },
-    { label: 'มังคุด', value: 'mangosteen' },
+    { label: 'ทุกประเภท', value: 'all' },
+    { label: 'ทุเรียน', value: 'ทุเรียน' },
+    { label: 'มะม่วง', value: 'มะม่วง' },
+    { label: 'องุ่น', value: 'องุ่น' },
+    { label: 'มังคุด', value: 'มังคุด' },
 ];
 
 const areaItems = [
+    { label: 'ทุกพื้นที่', value: 'all' },
     { label: '5 กม.', value: '5' },     
     { label: '20 กม.', value: '20' },    
     { label: '30 กม.', value: '30' },
@@ -29,32 +48,47 @@ const areaItems = [
 ];
 
 const priceItems = [
-    { label: 'ต่ำ-สูง', value: 'low-high' },
-    { label: 'สูง-ต่ำ', value: 'high-low' },
+    { label: 'ราคา', value: 'all' },
+    { label: 'ต่ำ-สูง', value: 'price_asc' },
+    { label: 'สูง-ต่ำ', value: 'price_desc' },
 ];
 
-// 2. ข้อมูลรายการสินค้า (ตามภาพ UI)
-const dummyProducts = [
-    { id: '1', productName: 'มะม่วงน้ำดอกไม้', price: 30, unit: 'กก.', grade: 'เกรด C', distance: '2.5 กม.', imageUrl: 'https://picsum.photos/id/66/300/200' },
-    { id: '2', productName: 'ทุเรียนหมอนทอง', price: 95, unit: 'กก.', grade: 'เกรด C', distance: '10 กม.', imageUrl: 'https://picsum.photos/id/1080/300/200' },
-    { id: '3', productName: 'องุ่นเขียวไร้เมล็ด', price: 90, unit: 'กก.', grade: 'เกรด C', distance: '23.2 กม.', imageUrl: 'https://picsum.photos/id/166/300/200' },
-    { id: '4', productName: 'มะม่วงเขียวเสวย', price: 85, unit: 'กก.', grade: 'เกรด C', distance: '21.3 กม.', imageUrl: 'https://picsum.photos/id/1025/300/200' },
-    { id: '5', productName: 'มังคุดเกรดพรีเมียม', price: 120, unit: 'กก.', grade: 'เกรด A', distance: '1.1 กม.', imageUrl: 'https://picsum.photos/id/237/300/200' },
-    { id: '6', productName: 'เงาะโรงเรียน', price: 75, unit: 'กก.', grade: 'เกรด B', distance: '5.0 กม.', imageUrl: 'https://picsum.photos/id/145/300/200' },
-];
 
 // ----------------------------------------------------
 // HOMESCREEN COMPONENT
 // ----------------------------------------------------
 
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371; // รัศมีโลก (กม.)
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
+
 const HomeScreen: React.FC = () => {
+    const { user } = useAuth();
+
+    const userLocation = user?.coordinates 
+        ? { lat: user.coordinates.lat, lng: user.coordinates.lng }
+        : { lat: 18.7883, lng: 98.9853 };
 
     const router = useRouter();
 
-    // *** State สำหรับ Navbar ***
     const [activeTab, setActiveTab] = useState<'home' | 'add' | 'profile'>('home');
 
-    // State สำหรับจัดการ Dropdown (ใช้ string)
+    // --- State สำหรับข้อมูลจริง ---
+    const [listings, setListings] = useState<Listing[]>([]); 
+    const [isFetching, setIsFetching] = useState(true);
+    
+    // 🟢 ใช้ IP สำหรับ Emulator (ถ้าใช้เครื่องจริง ให้เปลี่ยนเป็น IP เครื่องคอมฯ เช่น 192.168.1.xxx)
+    const IMAGE_BASE_URL = 'http://10.0.2.2:3000';
+
+    // Dropdown States
     const [typeOpen, setTypeOpen] = useState(false);
     const [typeValue, setTypeValue] = useState<string | null>('all');
     const [typeItemsState, setTypeItemsState] = useState(typeItems);
@@ -69,23 +103,101 @@ const HomeScreen: React.FC = () => {
 
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
-    // ฟังก์ชันทดสอบการค้นหา
-    const handleSearch = (query: string) => {
-        Alert.alert("ค้นหาสำเร็จ", `คุณค้นหา: "${query}"`);
-        console.log("User searched for:", query);
+    // ✅ เพิ่ม State สำหรับคำค้นหา (Keyword)
+    const [searchKeyword, setSearchKeyword] = useState<string>('');
+
+    // --- ฟังก์ชันดึงข้อมูล ---
+    const formatListingsResponse = (payload: any): Listing[] => {
+        if (Array.isArray(payload)) return payload;
+        if (payload?.items && Array.isArray(payload.items)) return payload.items;
+        return [];
     };
 
-    // ฟังก์ชันทดสอบการกดปุ่ม Banner (Navigation)
+    const handleFetchError = (error: any) => {
+        const status = error?.response?.status;
+        const backendMessage = error?.response?.data?.message;
+        console.error('Failed to fetch listings:', {
+            status,
+            data: error?.response?.data,
+            message: error?.message
+        });
+    };
+
+    // ✅ ปรับปรุง fetchListings ให้รับ keyword
+    const fetchListings = useCallback(async () => {
+        setIsFetching(true);
+        try {
+            // ปรับ Type Params ให้รองรับ keyword
+            const params: { product_name?: string; status?: string; keyword?: string } = {
+                status: 'available'
+            };
+
+            // Filter: ประเภทสินค้า
+            if (typeValue && typeValue !== 'all') {
+                params.product_name = typeValue;
+            }
+
+            // ✅ Filter: คำค้นหา (Keyword)
+            if (searchKeyword && searchKeyword.trim() !== '') {
+                params.keyword = searchKeyword;
+            }
+
+            const response = await api.get('/listings', { params });
+            let data: Listing[] = formatListingsResponse(response.data);
+
+            data = data.map(item => {
+                // ถ้า Backend ส่ง location_geom มา (geoJSON: [lng, lat])
+                if (item.location_geom && item.location_geom.coordinates) {
+                    const [lon, lat] = item.location_geom.coordinates;
+                    const dist = calculateDistance(userLocation.lat, userLocation.lng, lat, lon);
+                    return { ...item, distance: dist }; // เพิ่ม field distance ที่คำนวณแล้ว
+                }
+                return { ...item, distance: null };
+            });
+
+            // Filter: ระยะทาง (Local)
+            if (areaValue && areaValue !== 'all') {
+                const maxDistance = parseInt(areaValue, 10);
+                data = data.filter(item => item.distance !== null && item.distance <= maxDistance);
+            }
+
+            // Sort: ราคา
+            if (priceValue && priceValue !== 'all') {
+                if (priceValue === 'price_asc') {
+                    data = [...data].sort((a, b) => a.price_per_unit - b.price_per_unit);
+                } else if (priceValue === 'price_desc') {
+                    data = [...data].sort((a, b) => b.price_per_unit - a.price_per_unit);
+                }
+            }
+            setListings(data);
+        } catch (error: any) {
+            handleFetchError(error);
+        } finally {
+            setIsFetching(false);
+        }
+    // ✅ เพิ่ม searchKeyword ใน dependency array
+    }, [typeValue, areaValue, priceValue, searchKeyword]);
+
+    useEffect(() => {
+        fetchListings();
+    }, [fetchListings]);
+
+    // ✅ ฟังก์ชันเมื่อกดค้นหา
+    const handleSearch = (query: string) => {
+        setSearchKeyword(query); // อัปเดต State -> useEffect ทำงาน -> API ถูกเรียกใหม่
+    };
+
     const handleBannerPress = () => {
         router.push('/farmer/RegisterSellerScreen'); 
     };
 
-    // ฟังก์ชันทดสอบการกด Product Card
-    const handleProductPress = (productName: string) => {
-        Alert.alert("รายละเอียดสินค้า", `เปิดหน้า: ${productName}`);
+    const handleProductPress = (productId: string) => {
+        router.push({
+            pathname: '/productDetail', 
+            params: { id: productId }
+        });
     };
 
-    // ฟังก์ชันสำหรับควบคุมการเปิด-ปิด Dropdown เพื่อให้เปิดได้ทีละตัว
     const onOpenType = () => {
         setAreaOpen(false); setPriceOpen(false); setDistanceOpen(false);
         setTypeOpen(true);
@@ -102,27 +214,24 @@ const HomeScreen: React.FC = () => {
     };
     
     // *** ฟังก์ชันสำหรับ Navbar ***
-    const handleNavPress = (tab: 'home' | 'add' | 'profile') => {
+    const handleNavPress = (tab: 'home' |'add' | 'profile') => {
         setActiveTab(tab);
-        // สามารถเพิ่ม logic การ navigate ได้ที่นี่
         if (tab === 'home') {
+            return; // อยู่หน้า Home แล้ว
         } else if (tab === 'add') {
-             router.push('/farmer/RegisterSellerScreen');
+            router.push('/LoginScreen');
         } else if (tab === 'profile') {
-             router.push('/LoginScreen');;
+            router.push('/LoginScreen');
         }
     };
 
 
     return (
         <SafeAreaView style={styles.fullScreen}>
-            {/* View หลักที่ใช้ Flex 1 เพื่อห่อหุ้ม ScrollView และ Navbar */}
             <View style={styles.contentWrapper}> 
                 
-                {/* ScrollView สำหรับเนื้อหาส่วนบน (Flex 1) */}
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}
-                    // ปิด Dropdown เมื่อเลื่อนหน้าจอ
                     onScrollBeginDrag={() => {
                         setTypeOpen(false);
                         setAreaOpen(false);
@@ -131,7 +240,8 @@ const HomeScreen: React.FC = () => {
                 >
 
                     {/* --- 1. Search Bar Component --- */}
-                    <View style={styles.componentContainer}>
+                    <View style={[styles.componentContainer, { paddingHorizontal: 15 }]}>
+                        {/* ✅ เชื่อมต่อ handleSearch */}
                         <SearchBar
                             onSearch={handleSearch}
                             placeholder="ลองค้นหาสินค้าที่นี่..."
@@ -148,7 +258,6 @@ const HomeScreen: React.FC = () => {
 
                     {/* --- 3. Filter/Dropdown Row --- */}
                     <View style={styles.filterContainer}>
-                        {/* Dropdown 1: ประเภท - zIndex สูงสุด */}
                         <CustomDropdown
                             containerStyle={[styles.dropdownWrapper, { zIndex: 4000 }]}
                             placeholder="ประเภท"
@@ -161,7 +270,6 @@ const HomeScreen: React.FC = () => {
                             onOpen={onOpenType}
                         />
 
-                        {/* Dropdown 2: พื้นที่ - zIndex รองลงมา */}
                         <CustomDropdown
                             containerStyle={[styles.dropdownWrapper, { zIndex: 3000 }]}
                             placeholder="พื้นที่"
@@ -174,7 +282,6 @@ const HomeScreen: React.FC = () => {
                             onOpen={onOpenArea}
                         />
 
-                        {/* Dropdown 3: ราคา/ปริมาณ - zIndex ต่ำกว่า */}
                         <CustomDropdown
                             containerStyle={[styles.dropdownWrapper, { zIndex: 2000 }]}
                             placeholder="ราคา"
@@ -193,53 +300,86 @@ const HomeScreen: React.FC = () => {
 
                     {/* --- 5. Product List Grid --- */}
                     <FlatList
-                        data={dummyProducts}
+                        data={listings}
                         keyExtractor={item => item.id}
-                        renderItem={({ item }) => (
-                            <ProductCard
-                                productName={item.productName}
-                                price={item.price}
-                                unit={item.unit}
-                                grade={item.grade}
-                                distance={item.distance}
-                                imageUrl={item.imageUrl}
-                                onPress={() => handleProductPress(item.productName)}
-                            />
-                        )}
+                        renderItem={({ item }) => {
+                            
+                            // ดึงชื่อไฟล์จาก Array
+                            let imagePath = (item.image_url && item.image_url.length > 0) ? item.image_url[0] : null;
+                            
+                            // รูป Default
+                            let fullImageUrl = 'https://via.placeholder.com/300?text=No+Image'; 
+
+                            if (imagePath) {
+                                // 1. ลบเครื่องหมายคำพูด " ออก และแปลง Backslash
+                                imagePath = imagePath.replace(/['"]+/g, '').replace(/\\/g, '/');
+
+                                // 2. ตรวจสอบประเภทของ Path
+                                if (imagePath.startsWith('content://') || imagePath.startsWith('file://')) {
+                                    fullImageUrl = imagePath;
+                                } else if (imagePath.startsWith('http')) {
+                                    fullImageUrl = imagePath;
+                                } else {
+                                    // รูปบน Server -> ต่อ Base URL
+                                    const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+                                    // เช็คว่า cleanPath มีคำว่า uploads หรือยัง
+                                    if (cleanPath.startsWith('uploads/')) {
+                                        fullImageUrl = `${IMAGE_BASE_URL}/${cleanPath}`;
+                                    } else {
+                                        fullImageUrl = `${IMAGE_BASE_URL}/uploads/${cleanPath}`; 
+                                    }
+                                }
+                            }
+
+                            return (
+                                <ProductCard
+                                    productName={item.product_name}
+                                    price={item.price_per_unit}
+                                    unit={item.unit}
+                                    grade={item.grade || '-'}
+                                    distance={typeof item.distance === 'number' 
+                                        ? `${item.distance.toFixed(1)} กม.` 
+                                        : 'ไม่ระบุ'}
+                                    imageUrl={fullImageUrl}
+                                    onPress={() => handleProductPress(item.id)}
+                                />
+                            );
+                        }}
                         numColumns={2} 
                         contentContainerStyle={styles.productList}
                         scrollEnabled={false} 
+                        ListEmptyComponent={() => (
+                            <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>ไม่พบสินค้าที่คุณค้นหา</Text>
+                        )}
                     />
 
                 </ScrollView>
                 
-                {/* --- 6. Bottom Navbar Component (อยู่ล่างสุด) --- */}
+                {/* --- 6. Bottom Navbar Component --- */}
                 <BottomNavbar
                     onHomePress={() => handleNavPress('home')}
                     onAddPress={() => handleNavPress('add')}
                     onProfilePress={() => handleNavPress('profile')}
                     activeTab={activeTab}
                 />
-            
+        
             </View>
         </SafeAreaView>
     );
 };
 
 // ----------------------------------------------------
-// Styles สำหรับหน้าจอทดสอบ
+// Styles
 const styles = StyleSheet.create({
     fullScreen: {
         flex: 1,
         backgroundColor: '#F7FAFC',
     },
-    // View ที่ห่อหุ้มเนื้อหาทั้งหมด (ScrollView + Navbar)
     contentWrapper: {
         flex: 1,
     },
     scrollContent: {
         paddingVertical: 10,
-        // เพิ่ม paddingBottom เพื่อให้เนื้อหาส่วนล่างไม่ถูก Navbar บัง
         paddingBottom: 60, 
         paddingTop: 50,
     },
@@ -288,8 +428,9 @@ const styles = StyleSheet.create({
         marginTop: 5,
     },
     productList: {
-        paddingHorizontal: 30, 
-        justifyContent: 'space-between',
+        paddingHorizontal: 20, 
+        justifyContent: 'center', 
+        paddingBottom: 80, // เพิ่ม padding ล่างกัน Navbar บัง
     },
 });
 

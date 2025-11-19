@@ -21,6 +21,7 @@ import api from '../../services/api';
 
 const { width } = Dimensions.get('window');
 
+// ✅ Config กราฟแบบเดียวกับ ProductDetail
 const chartConfig = {
   backgroundColor: '#ffffff',
   backgroundGradientFrom: '#ffffff',
@@ -29,12 +30,12 @@ const chartConfig = {
   color: (opacity = 1) => `rgba(0, 86, 179, ${opacity})`,
   labelColor: (opacity = 1) => `rgba(100, 100, 100, ${opacity})`,
   propsForDots: {
-    r: '4',
-    strokeWidth: '2',
-    stroke: '#0056b3',
-    paddingRight: 0,
-    paddingLeft: 0,
+      r: "4",
+      strokeWidth: "2",
+      stroke: "#0056b3"
   },
+  paddingRight: 0, 
+  paddingLeft: 0,
 };
 
 const DashboardScreen = () => {
@@ -45,18 +46,21 @@ const DashboardScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // State สำหรับยอดขายและประวัติ
   const [metrics, setMetrics] = useState({
     totalRevenue: 0,
-    increasePercent: 0,
-    salesHistory: [] as any[], // เก็บเป็น Array
+    salesHistory: [] as any[],
   });
   
-  const [chartDataMap, setChartDataMap] = useState<any>({}); 
+  // ✅ State สำหรับกราฟ
+  const [graphData, setGraphData] = useState<any>(null);
+  const [isChartLoading, setIsChartLoading] = useState(false);
+
   const [selectedChart, setSelectedChart] = useState('มะม่วง'); 
   const [isDropdownVisible, setDropdownVisible] = useState(false);
-
   const chartOptions = ['มะม่วง', 'ทุเรียน', 'มังคุด', 'องุ่น'];
 
+  // 1. ฟังก์ชันดึงข้อมูล Dashboard (รายได้ + ประวัติการขาย)
   const fetchDashboardData = useCallback(
     async ({ showScreenLoader = false }: { showScreenLoader?: boolean } = {}) => {
       if (!token) {
@@ -66,89 +70,98 @@ const DashboardScreen = () => {
       }
 
       setError(null);
-      if (showScreenLoader) {
-        setIsLoading(true);
-      }
+      if (showScreenLoader) setIsLoading(true);
 
       try {
-        const [dashboardRes, historyRes] = await Promise.all([
-          getFarmerDashboard(), // สำหรับกราฟ
-          api.get('/orders/history/sales') // สำหรับคำนวณยอดขาย
-        ]);
-
         const response = await getFarmerDashboard();
-        const { metrics: backendMetrics, priceTrends } = response;
-        const allSales = historyRes.data;
-
-        const totalRevenue = allSales.reduce((sum: number, order: any) => {
-            return sum + parseFloat(order.total_price || '0');
-        }, 0);
-
-        const formattedHistory = allSales.map((order: any) => ({
-            product_name: order.Listing?.product_name || 'สินค้า',
-            grade: order.Listing?.grade , 
-            quantity: parseFloat(order.quantity_ordered),
-            total_price: parseFloat(order.total_price),
-            date: order.created_at
-        }));
-
-
+        const { metrics: backendMetrics } = response;
+        
         setMetrics({
           totalRevenue: backendMetrics.totalRevenue || 0,
-          increasePercent: backendMetrics.increasePercent || 0,
           salesHistory: (backendMetrics as any).salesHistory || [],
         });
-
-        const formattedCharts: any = {};
-        const defaultChart = {
-          labels: ['-'],
-          datasets: [{ data: [0] }]
-        };
-
-        Object.keys(priceTrends || {}).forEach(product => {
-          const trends = (priceTrends[product] || []) as Array<{ date: string; price: number }>;
-          if (trends && trends.length > 0) {
-            formattedCharts[product] = {
-              labels: trends.map((t: any) => {
-                const d = new Date(t.date);
-                return d.toLocaleDateString('th-TH', { month: 'short' });
-              }),
-              datasets: [{ data: trends.map((t: any) => t.price) }]
-            };
-          } else {
-            formattedCharts[product] = defaultChart;
-          }
-        });
-
-        setChartDataMap(formattedCharts);
 
       } catch (error) {
         console.error('Fetch Dashboard Error:', error);
         setError('ไม่สามารถโหลดข้อมูลแดชบอร์ดได้');
       } finally {
-        if (showScreenLoader) {
-          setIsLoading(false);
-        }
+        if (showScreenLoader) setIsLoading(false);
         setRefreshing(false);
       }
     },
     [token]
   );
 
+  // 2. ฟังก์ชันดึงข้อมูลกราฟจาก **ราคาซื้อขายจริง (Real Market)**
+  const fetchChartData = useCallback(async () => {
+      if (!token) return;
+      
+      setIsChartLoading(true);
+      try {
+          // ✅ เปลี่ยนตรงนี้: ดึงจาก /prices/real-market แทน /listings
+          const response = await api.get('/prices/real-market', {
+             headers: { Authorization: `Bearer ${token}` }
+          });
+
+          const allHistory = response.data;
+
+          // 1. กรองเฉพาะสินค้าที่เลือก (เช่น 'มะม่วง')
+          const productHistory = allHistory.filter((item: any) => item.product_name === selectedChart);
+
+          if (productHistory.length > 0) {
+              // 2. เรียงตามวันที่ (เก่า -> ใหม่) เพื่อให้กราฟวิ่งจากซ้ายไปขวา
+              const sortedList = productHistory.sort((a: any, b: any) => 
+                  new Date(a.record_date).getTime() - new Date(b.record_date).getTime()
+              );
+              
+              // 3. ตัดมาแค่ 6 รายการล่าสุด
+              const recentList = sortedList.slice(-6);
+
+              const labels = recentList.map((item: any) => {
+                  const d = new Date(item.record_date);
+                  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+              });
+
+              const prices = recentList.map((item: any) => parseFloat(item.average_price));
+
+              // ถ้ามีข้อมูลจุดเดียว ให้เพิ่มจุดหลอกเพื่อให้กราฟลากเส้นได้สวยงาม
+              if (prices.length === 1) {
+                  labels.unshift('ก่อนหน้า');
+                  prices.unshift(prices[0]);
+              }
+
+              setGraphData({
+                  labels: labels,
+                  datasets: [{ data: prices }]
+              });
+          } else {
+              setGraphData(null);
+          }
+      } catch (err) {
+          console.log('Chart Data Fetch Error:', err);
+          setGraphData(null);
+      } finally {
+          setIsChartLoading(false);
+      }
+  }, [selectedChart, token]);
+
+  // Effect 1: โหลด Dashboard ครั้งแรก
   useEffect(() => {
     if (authLoading) return;
     fetchDashboardData({ showScreenLoader: true });
   }, [authLoading, fetchDashboardData]);
 
+  // Effect 2: โหลดกราฟเมื่อเปลี่ยนสินค้า (selectedChart) หรือ token มา
+  useEffect(() => {
+      if (authLoading) return;
+      fetchChartData();
+  }, [authLoading, selectedChart, fetchChartData]);
+
   const onRefresh = () => {
     if (!token) return;
     setRefreshing(true);
     fetchDashboardData();
-  };
-
-  const currentChartData = chartDataMap[selectedChart] || {
-    labels: ['No Data'],
-    datasets: [{ data: [0] }]
+    fetchChartData();
   };
 
   const handleSelectOption = (option: string) => {
@@ -156,14 +169,11 @@ const DashboardScreen = () => {
     setDropdownVisible(false); 
   };
 
-  const handleBack = () => {
-        router.back();
-    };
-
-  const handleNavHome = () => { router.push('/farmer/homeFarmer'); };
+  const handleBack = () => router.back();
+  const handleNavHome = () => router.push('/farmer/homeFarmer');
   const handleNavChart = () => { };
-  const handleNavAdd = () => { router.push('/farmer/createPost'); };
-  const handleNavNotifications = () => { router.push('/farmer/notification'); };
+  const handleNavAdd = () => router.push('/farmer/createPost');
+  const handleNavNotifications = () => router.push('/farmer/notification');
 
   if (authLoading || (isLoading && !refreshing)) {
     return (
@@ -198,24 +208,15 @@ const DashboardScreen = () => {
 
         {/* --- Metrics Cards --- */}
         <View style={styles.metricsRow}>
-          <View style={styles.metricCard}>
+          <View style={[styles.metricCard, { width: '100%' }]}>
             <Text style={styles.metricLabel}>รายได้ทั้งหมด</Text>
-            <Text style={styles.metricValueBlue}>
+            <Text style={styles.metricValueGreen}>
               {metrics.totalRevenue.toLocaleString()} บาท
             </Text>
           </View>
-
-          <View style={[styles.metricCard, styles.metricCardGreenBg]}>
-            {/* 🟢 เปลี่ยน Label ให้ตรงกับ Logic Backend (เปรียบเทียบกับพ่อค้าคนกลาง) */}
-            <Text style={styles.metricLabel}>กำไรส่วนต่าง</Text>
-            <Text style={[styles.metricValueGreen, { color: metrics.increasePercent >= 0 ? '#28a745' : '#dc3545' }]}>
-                {metrics.increasePercent > 0 ? '+' : ''}{metrics.increasePercent}%
-            </Text>
-            <Text style={{fontSize: 10, color: '#666'}}>(เทียบราคาล้ง)</Text>
-          </View>
         </View>
 
-         {/* --- ⭐️ ส่วนแก้ไข: แสดงรายการขายทั้งหมด (List) --- */}
+         {/* --- รายการขายทั้งหมด --- */}
         <View style={styles.historySection}>
           <Text style={styles.sectionTitle}>รายการขายทั้งหมด</Text>
           
@@ -227,14 +228,12 @@ const DashboardScreen = () => {
                             {item.product_name} <Text style={styles.gradeText}>({item.grade})</Text>
                         </Text>
                         <Text style={styles.saleDate}>
-                            {/* ตรวจสอบว่ามีวันที่หรือไม่ ถ้าไม่มีใช้วันนี้ */}
                             {item.date ? new Date(item.date).toLocaleDateString('th-TH') : ''}
                         </Text>
                     </View>
                     
                     <View style={styles.historyDetails}>
                         <Text style={styles.detailText}>จำนวน: {item.quantity} กก.</Text>
-                        {/* เช็คค่าก่อน toLocaleString เพื่อกัน Error */}
                         <Text style={styles.priceText}>+{parseFloat(item.total_price || '0').toLocaleString()} บาท</Text>
                     </View>
                 </View>
@@ -253,7 +252,8 @@ const DashboardScreen = () => {
               style={styles.chartDropdownButton}
               onPress={() => setDropdownVisible(!isDropdownVisible)}
             >
-              <Text style={styles.chartDropdownText}>ราคาตลาด: {selectedChart} ▾</Text>
+              {/* เปลี่ยนข้อความให้สื่อความหมายถูกต้อง */}
+              <Text style={styles.chartDropdownText}>ราคาตลาด (ซื้อขายสำเร็จ): {selectedChart} ▾</Text>
             </TouchableOpacity>
 
             {isDropdownVisible && (
@@ -283,19 +283,24 @@ const DashboardScreen = () => {
           </View>
 
           <View style={styles.chartContainer}>
-            {currentChartData.datasets[0].data.length > 0 && currentChartData.labels.length > 0 ? (
+            {isChartLoading ? (
+                 <View style={{height: 220, justifyContent: 'center', alignItems: 'center'}}>
+                    <ActivityIndicator size="large" color="#0056b3" />
+                 </View>
+            ) : graphData ? (
                <LineChart
-               data={currentChartData}
+               data={graphData}
                width={width - 32} 
                height={220}
                chartConfig={chartConfig}
                bezier
                style={styles.chart}
-               fromZero
+               fromZero={true}
+               withInnerLines={false}
              />
             ) : (
               <View style={{height: 220, justifyContent: 'center', alignItems: 'center'}}>
-                <Text style={{color: '#999'}}>ไม่มีข้อมูลราคาตลาด</Text>
+                <Text style={{color: '#999'}}>ไม่มีข้อมูลการซื้อขายสำเร็จของ {selectedChart}</Text>
               </View>
             )}
           </View>
@@ -348,42 +353,35 @@ const styles = StyleSheet.create({
   },
   metricsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 16,
     marginTop: 16,
   },
   metricCard: {
-    width: '48%',
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
+    padding: 20, 
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  metricCardGreenBg: {
-    backgroundColor: '#e6f7eb',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   metricLabel: {
-    fontSize: 16,
-    color: '#555',
-  },
-  metricValueBlue: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#0056b3',
-    marginTop: 8,
+    color: '#333',
   },
   metricValueGreen: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#28a745',
-    marginTop: 8,
+    color: '#28a745', 
   },
   
-  // --- ⭐️ Styles สำหรับ History List ---
+  // --- History List Styles ---
   historySection: {
       marginTop: 20,
       paddingHorizontal: 16,
@@ -437,7 +435,7 @@ const styles = StyleSheet.create({
   priceText: {
       fontSize: 16,
       fontWeight: 'bold',
-      color: '#28a745', // สีเขียวสำหรับยอดเงิน
+      color: '#28a745', 
   },
   emptyHistory: {
       padding: 20,

@@ -86,7 +86,7 @@ const HomeScreen: React.FC = () => {
     const [isFetching, setIsFetching] = useState(true);
     
     // 🟢 ใช้ IP สำหรับ Emulator (ถ้าใช้เครื่องจริง ให้เปลี่ยนเป็น IP เครื่องคอมฯ เช่น 192.168.1.xxx)
-    const IMAGE_BASE_URL = 'http://10.0.2.2:3000';
+    const IMAGE_BASE_URL = 'http://10.121.227.165:3000';
 
     // Dropdown States
     const [typeOpen, setTypeOpen] = useState(false);
@@ -103,6 +103,9 @@ const HomeScreen: React.FC = () => {
 
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
+    // ✅ เพิ่ม State สำหรับคำค้นหา (Keyword)
+    const [searchKeyword, setSearchKeyword] = useState<string>('');
+
     // --- ฟังก์ชันดึงข้อมูล ---
     const formatListingsResponse = (payload: any): Listing[] => {
         if (Array.isArray(payload)) return payload;
@@ -113,25 +116,32 @@ const HomeScreen: React.FC = () => {
     const handleFetchError = (error: any) => {
         const status = error?.response?.status;
         const backendMessage = error?.response?.data?.message;
-        const fallbackMessage = backendMessage || (status ? `เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (${status})` : 'ไม่สามารถดึงรายการสินค้าได้');
         console.error('Failed to fetch listings:', {
             status,
             data: error?.response?.data,
             message: error?.message
         });
-        // Alert.alert('ผิดพลาด', fallbackMessage); // ปิด Alert รบกวนถ้าต้องการ
     };
 
+    // ✅ ปรับปรุง fetchListings ให้รับ keyword
     const fetchListings = useCallback(async () => {
         setIsFetching(true);
         try {
-            const params: { product_name?: string; status?: string } = {
+            // ปรับ Type Params ให้รองรับ keyword
+            const params: { product_name?: string; status?: string; keyword?: string } = {
                 status: 'available'
             };
 
+            // Filter: ประเภทสินค้า
             if (typeValue && typeValue !== 'all') {
                 params.product_name = typeValue;
             }
+
+            // ✅ Filter: คำค้นหา (Keyword)
+            if (searchKeyword && searchKeyword.trim() !== '') {
+                params.keyword = searchKeyword;
+            }
+
             const response = await api.get('/listings', { params });
             let data: Listing[] = formatListingsResponse(response.data);
 
@@ -145,11 +155,13 @@ const HomeScreen: React.FC = () => {
                 return { ...item, distance: null };
             });
 
+            // Filter: ระยะทาง (Local)
             if (areaValue && areaValue !== 'all') {
                 const maxDistance = parseInt(areaValue, 10);
                 data = data.filter(item => item.distance !== null && item.distance <= maxDistance);
             }
 
+            // Sort: ราคา
             if (priceValue && priceValue !== 'all') {
                 if (priceValue === 'price_asc') {
                     data = [...data].sort((a, b) => a.price_per_unit - b.price_per_unit);
@@ -163,14 +175,16 @@ const HomeScreen: React.FC = () => {
         } finally {
             setIsFetching(false);
         }
-    }, [typeValue, areaValue, priceValue]);
+    // ✅ เพิ่ม searchKeyword ใน dependency array
+    }, [typeValue, areaValue, priceValue, searchKeyword]);
 
     useEffect(() => {
         fetchListings();
     }, [fetchListings]);
 
+    // ✅ ฟังก์ชันเมื่อกดค้นหา
     const handleSearch = (query: string) => {
-        Alert.alert("ค้นหาสำเร็จ", `คุณค้นหา: "${query}"`);
+        setSearchKeyword(query); // อัปเดต State -> useEffect ทำงาน -> API ถูกเรียกใหม่
     };
 
     const handleBannerPress = () => {
@@ -227,6 +241,7 @@ const HomeScreen: React.FC = () => {
 
                     {/* --- 1. Search Bar Component --- */}
                     <View style={[styles.componentContainer, { paddingHorizontal: 15 }]}>
+                        {/* ✅ เชื่อมต่อ handleSearch */}
                         <SearchBar
                             onSearch={handleSearch}
                             placeholder="ลองค้นหาสินค้าที่นี่..."
@@ -289,16 +304,12 @@ const HomeScreen: React.FC = () => {
                         keyExtractor={item => item.id}
                         renderItem={({ item }) => {
                             
-                            // 🔍 DEBUG LOGS: เช็คค่า URL
-                            console.log(`\n📦 Product ID: ${item.id} (${item.product_name})`);
-                            // console.log("   RAW image_url:", item.image_url);
-
                             // ดึงชื่อไฟล์จาก Array
                             let imagePath = (item.image_url && item.image_url.length > 0) ? item.image_url[0] : null;
                             
                             // รูป Default
                             let fullImageUrl = 'https://via.placeholder.com/300?text=No+Image'; 
-
+                            
                             if (imagePath) {
                                 // 1. ลบเครื่องหมายคำพูด " ออก และแปลง Backslash
                                 imagePath = imagePath.replace(/['"]+/g, '').replace(/\\/g, '/');
@@ -306,10 +317,8 @@ const HomeScreen: React.FC = () => {
                                 // 2. ตรวจสอบประเภทของ Path
                                 if (imagePath.startsWith('content://') || imagePath.startsWith('file://')) {
                                     fullImageUrl = imagePath;
-                                    console.log("   Type: Local URI");
                                 } else if (imagePath.startsWith('http')) {
                                     fullImageUrl = imagePath;
-                                    console.log("   Type: Full URL");
                                 } else {
                                     // รูปบน Server -> ต่อ Base URL
                                     const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
@@ -319,16 +328,9 @@ const HomeScreen: React.FC = () => {
                                     } else {
                                         fullImageUrl = `${IMAGE_BASE_URL}/uploads/${cleanPath}`; 
                                     }
-                                    console.log("   Type: Server Path");
+                                    //console.log('Full Image URL:', fullImageUrl);
                                 }
                             }
-                            const distanceText = (item.distance !== undefined && item.distance !== null)
-                                ? `${item.distance.toFixed(1)} กม.` 
-                                : 'ไม่ระบุ';
-
-                            // 🏁 DEBUG LOGS: ค่าสุดท้าย
-                            console.log("   🚀 FINAL URL:", fullImageUrl);
-                            console.log("------------------------------------------------");
 
                             return (
                                 <ProductCard
@@ -348,7 +350,7 @@ const HomeScreen: React.FC = () => {
                         contentContainerStyle={styles.productList}
                         scrollEnabled={false} 
                         ListEmptyComponent={() => (
-                            <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>ไม่พบสินค้า</Text>
+                            <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>ไม่พบสินค้าที่คุณค้นหา</Text>
                         )}
                     />
 

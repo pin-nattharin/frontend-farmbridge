@@ -63,7 +63,7 @@ const EditProfileScreen = () => {
 
         try {
             // ยิง API (ตรงกับ auth.routes.js)
-            const response = await api.put('/api/auth/profile', {
+            const response = await api.put('/auth/profile', {
                 fullname: fullname,
                 phone: phone
                 // (Back-end ของคุณยังรองรับ 'address' ด้วย ถ้ามีช่อง Input ก็เพิ่มได้เลย)

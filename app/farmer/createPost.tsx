@@ -1,12 +1,11 @@
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-// 🟢 1. เปลี่ยน Imports
 import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Alert,
   Platform,
-  ScrollView, // (Import ScrollView)
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,20 +13,19 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-// 🟢 2. เพิ่ม Import ไอคอน
 import { MaterialIcons } from '@expo/vector-icons'; 
 import { Ionicons } from '@expo/vector-icons';
 
-// (Import Components และ api เหมือนเดิม)
 import Button from '../../components/ui/Button';
 import CustomDropdown from '../../components/ui/Dropdown';
 import RoundedInput from '../../components/ui/RoundedInput';
 import CustomModal from '../../components/ui/Modal';
 import api from '../../services/api';
+// ✅ 1. เพิ่ม Import useAuth
+import { useAuth } from '../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
-// (Data ทั้งหมดเหมือนเดิม)
 const allGradesData = {
   ทุเรียน: [
     { label: 'เกรด B (ทรงปกติ เปลือกไม่ช้ำมาก)', value: 'เกรด B' },
@@ -50,24 +48,14 @@ const allGradesData = {
     { label: 'ต่ำกว่าเกรด C (ช้ำ บิดเบี้ยว)', value: 'เกรดต่ำกว่า C-' },
   ],
 };
-const marketPriceData: { [key: string]: string } = {
-  'มะม่วง': '10-25',
-  'ทุเรียน': '120-160',
-  'มังคุด': '25-45',
-  'องุ่น': '30-60',
-};
 
-const productLabels = {
-  durian: 'ทุเรียน',
-  mango: 'มะม่วง',
-  mangosteen: 'มังคุด',
-  grape: 'องุ่น',
-};
+// (ลบ marketPriceData ออกแล้ว เพราะใช้ API จริงแทน)
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  // ✅ 2. ดึง Token มาใช้
+  const { token } = useAuth();
 
-  // (States ทั้งหมดเหมือนเดิม - ใช้ image_url ถูกต้องแล้ว)
   const [image_url, setImage_url] = useState<DocumentPicker.DocumentPickerAsset[] | null>(null);
   const [product_name, setProduct_Name] = useState<string | null>(null);
   const [grade, setGrade] = useState<string | null>(null);
@@ -84,30 +72,65 @@ export default function CreatePostScreen() {
     { label: 'องุ่น', value: 'องุ่น' },
   ]);
   const [gradeItems, setGradeItems] = useState<Array<{label: string, value: string}>>([]);
+  
   const [isModalVisible, setModalVisible] = useState(false);
   const [modalPrice, setModalPrice] = useState('');
+  const [modalAvg, setModalAvg] = useState(''); // ✅ 3. เพิ่ม State ราคาเฉลี่ย
   const [modalProduct, setModalProduct] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // (useEffect, pickImage, onDateChange - เหมือนเดิม)
+  // ✅ 4. ปรับ Logic การดึงราคาใน useEffect
   useEffect(() => {
     if (product_name) {
+      // 4.1 อัปเดตตัวเลือกเกรดสินค้า
       const newGrades = allGradesData[product_name as keyof typeof allGradesData] || [];
       setGradeItems(newGrades);
-      const price = marketPriceData[product_name];
-      
-      const label = productLabels[product_name as keyof typeof productLabels];
-      if (price) {
-        setModalProduct(product_name);
-        setModalPrice(price);
-        // แสดง Modal ทันทีเมื่อเลือกสินค้า
-        setModalVisible(true);
-      }
+
+      // 4.2 ดึงราคาตลาดจริงจาก API
+      const fetchMarketPrice = async () => {
+        try {
+          // ส่ง Token ไปด้วย (ถ้า API ต้องการ)
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
+          const response = await api.get('/prices/real-market', { headers });
+          const allPrices = response.data;
+
+          // กรองเฉพาะสินค้าที่เลือก
+          const productPrices = allPrices.filter((p: any) => p.product_name === product_name);
+
+          if (productPrices.length > 0) {
+            const prices = productPrices.map((p: any) => parseFloat(p.average_price));
+            
+            // หา Min/Max
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+
+            // หาค่าเฉลี่ย
+            const sumPrice = prices.reduce((a: number, b: number) => a + b, 0);
+            const avgPrice = (sumPrice / prices.length).toFixed(2);
+
+            setModalProduct(product_name);
+            setModalAvg(avgPrice); // เซ็ตค่าเฉลี่ย
+
+            if (minPrice === maxPrice) {
+              setModalPrice(`${minPrice}`);
+            } else {
+              setModalPrice(`${minPrice} - ${maxPrice}`);
+            }
+            
+            setModalVisible(true);
+          }
+        } catch (error) {
+          console.log("Failed to fetch market price:", error);
+        }
+      };
+
+      fetchMarketPrice();
+
     } else {
       setGradeItems([]);
     }
     setGrade(null); 
-  }, [product_name]);
+  }, [product_name, token]);
 
   const pickImage = async () => {
     try {
@@ -117,7 +140,7 @@ export default function CreatePostScreen() {
         multiple: true,
       });
       if (result.canceled === false && result.assets && result.assets.length > 0) {
-        setImage_url(result.assets); //
+        setImage_url(result.assets); 
       } else {
         setImage_url(null); 
       }
@@ -135,11 +158,9 @@ export default function CreatePostScreen() {
         router.back();
     };
 
-  // 🟢 3. แก้ไข handlePost
   const handlePost = useCallback(async () => {
     if (isLoading) return;
 
-    // (ตรวจสอบข้อมูล - ใช้ image_url ถูกต้อง)
     if (!product_name || !grade || !quantity_total || !price_per_unit || !image_url || image_url.length === 0 || !pickup_date) {
       Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (รูป, ชื่อ, เกรด, จำนวน, ราคา, วันที่) ให้ครบถ้วน');
       return;
@@ -147,13 +168,9 @@ export default function CreatePostScreen() {
 
     setIsLoading(true);
 
-    
-
     try {
-      // ⭐️ 1. สร้าง FormData Object
       const formData = new FormData();
 
-      // ⭐️ 2. ใส่ข้อมูล Text
       formData.append('product_name', product_name!);
       formData.append('grade', grade!);
       formData.append('quantity_total', quantity_total);
@@ -162,26 +179,23 @@ export default function CreatePostScreen() {
       formData.append('description', description);
       formData.append('unit', 'กก.');
 
-      // ⭐️ 3. ใส่ไฟล์รูปภาพ (สำคัญมากต้องมี uri, name, type)
       if (image_url) {
         image_url.forEach((file, index) => {
-            // ตรวจสอบว่า file มี mimeType หรือไม่ ถ้าไม่มีให้เดาเอา
             const fileType = file.mimeType || 'image/jpeg';
             const fileName = file.name || `photo_${index}.jpg`;
 
-            // Append ไฟล์ลงไปในชื่อ 'images' (ต้องตรงกับ backend upload.array('images'))
             formData.append('images', {
                 uri: file.uri,
                 name: fileName,
                 type: fileType,
-            } as any); // ต้อง cast as any เพื่อหลบ TypeScript error ใน RN
+            } as any); 
         });
       }
 
-      // ⭐️ 4. ส่ง request โดยกำหนด Header เป็น multipart/form-data
       await api.post('/listings', formData, {
           headers: {
               'Content-Type': 'multipart/form-data',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}), // เพิ่ม Token ถ้ามี
           },
       });
 
@@ -195,24 +209,20 @@ export default function CreatePostScreen() {
       Alert.alert('โพสต์ไม่สำเร็จ', err.response?.data?.message || 'เกิดข้อผิดพลาด');
     }
   }, [
-    // (Dependencies - ใช้ image_url ถูกต้อง)
     isLoading, image_url, product_name, grade, 
     quantity_total, price_per_unit, pickup_date, 
-    description, router, gradeItems 
+    description, router, gradeItems, token
   ]);
 
 
   return (
     <>
-      {/* 🟢 5. (สำคัญ) เพิ่ม ScrollView ห่อฟอร์ม */}
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
         
-        {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
-                        </TouchableOpacity>
+            <Ionicons name="arrow-back" size={24} color="#0056b3" />
+        </TouchableOpacity>
 
-        {/* 🟢 6. (แก้ไข) UI ปุ่มเลือกรูป (เปลี่ยน selectedFile -> image_url) */}
         <View style={styles.uploadContainer}>
 
           <Button
@@ -255,7 +265,6 @@ export default function CreatePostScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* (Dropdowns และ Inputs ที่เหลือเหมือนเดิม) */}
         <Text style={styles.label}>ชื่อสินค้า</Text>
         <CustomDropdown
           open={openDropdown === 'product'}
@@ -328,15 +337,21 @@ export default function CreatePostScreen() {
 
       </ScrollView>
       
-      {/* (Modal เหมือนเดิม) */}
+      {/* ✅ 5. ปรับปรุง Modal แสดงราคาตลาดจริง + ค่าเฉลี่ย */}
       <CustomModal 
         isVisible={isModalVisible} 
         onClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContentContainer}>
-          <Text style={styles.modalTitle}>คำแนะนำ</Text>
+          <Text style={styles.modalTitle}>คำแนะนำราคาตลาด</Text>
           <Text style={styles.modalText}>
-            5 วันที่ผ่านมา {modalProduct} มีราคาอยู่ที่ {modalPrice} บาท/กิโลกรัม
+            อ้างอิงจากการซื้อขายจริงของ{"\n"}
+            {modalProduct} มีราคาอยู่ที่{"\n"}
+            <Text style={{ fontWeight: 'bold', color: '#28a745', fontSize: 22 }}>
+               {modalPrice} บาท/กก.
+            </Text>
+            {"\n\n"}
+            (ราคาเฉลี่ย: <Text style={{ fontWeight: 'bold', color: '#0056b3' }}>{modalAvg}</Text> บาท)
           </Text>
           <TouchableOpacity 
             style={styles.modalButton} 
@@ -350,7 +365,7 @@ export default function CreatePostScreen() {
   );
 }
 
-// --- 4. Styles ---
+// --- Styles ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -363,14 +378,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   backButton: {
-        position: 'absolute', // ทำให้ปุ่มลอย
-        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        position: 'absolute',
+        top: 50,
         left: 15,
-        zIndex: 10, // ให้อยู่ด้านบนสุด
+        zIndex: 10,
         padding: 5,
     },
   
-  // 🟢 7. (Styles รูปภาพใหม่)
   uploadContainer: {
     marginBottom: 20, 
   },
@@ -402,7 +416,6 @@ const styles = StyleSheet.create({
       paddingHorizontal: 10,
   },
 
-  // (Styles ที่เหลือเหมือนเดิม)
   label: {
     fontSize: 16,
     fontWeight: '500',

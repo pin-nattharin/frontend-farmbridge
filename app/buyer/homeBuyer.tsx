@@ -24,7 +24,6 @@ interface Listing {
         address: string;
     };
     distance: number | null;
-    // ⭐️ รองรับพิกัดจาก Backend
     location_geom?: {
         type: string;
         coordinates: number[]; // [lng, lat]
@@ -54,7 +53,7 @@ const priceItems = [
     { label: 'สูง-ต่ำ', value: 'price_desc' },
 ];
 
-// ⭐️ 1. ฟังก์ชันคำนวณระยะทาง (Haversine)
+// 1. ฟังก์ชันคำนวณระยะทาง (Haversine)
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     if (!lat1 || !lon1 || !lat2 || !lon2) return null;
     const R = 6371; // รัศมีโลก (km)
@@ -75,6 +74,7 @@ const HomeScreen: React.FC = () => {
 
     const router = useRouter();
     const { user, token, logout } = useAuth();
+    // ใช้พิกัด User จริง หรือ Default ที่เชียงใหม่
     const userLocation = user?.coordinates 
         ? { lat: user.coordinates.lat, lng: user.coordinates.lng }
         : { lat: 18.7883, lng: 98.9853 };
@@ -83,10 +83,9 @@ const HomeScreen: React.FC = () => {
 
     const [listings, setListings] = useState<Listing[]>([]); 
     const [isFetching, setIsFetching] = useState(true);
-    const IMAGE_BASE_URL = 'http://192.168.0.102:3000'
-
-
-    //const userLocation = { lat: 13.7563, lng: 100.5018 }; 
+    
+    // เปลี่ยน IP ตามเครื่อง Server ของคุณ
+    const IMAGE_BASE_URL = 'http://10.121.227.165:3000';
 
     // Dropdown States
     const [typeOpen, setTypeOpen] = useState(false);
@@ -103,6 +102,9 @@ const HomeScreen: React.FC = () => {
 
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
+    // ✅ เพิ่ม State สำหรับคำค้นหา (Keyword)
+    const [searchKeyword, setSearchKeyword] = useState<string>('');
+
     const formatListingsResponse = (payload: any): Listing[] => {
         if (Array.isArray(payload)) return payload;
         if (payload?.items && Array.isArray(payload.items)) return payload.items;
@@ -112,27 +114,33 @@ const HomeScreen: React.FC = () => {
     const handleFetchError = (error: any) => {
         const status = error?.response?.status;
         const backendMessage = error?.response?.data?.message;
-        const fallbackMessage = backendMessage || (status ? `เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (${status})` : 'ไม่สามารถดึงรายการสินค้าได้');
         console.error('Failed to fetch listings:', {
             status,
-            data: error?.response?.data,
             message: error?.message
         });
     };
 
+    // ✅ ฟังก์ชันดึงข้อมูล (เพิ่ม keyword ลงใน params)
     const fetchListings = useCallback(async () => {
         setIsFetching(true);
         try {
-            const params: { product_name?: string; status?: string } = { status: 'available' };
+            // กำหนด Type ของ params ให้รองรับ keyword
+            const params: { product_name?: string; status?: string; keyword?: string } = { status: 'available' };
             
+            // ใส่ประเภทสินค้า (Dropdown)
             if (typeValue && typeValue !== 'all') {
                 params.product_name = typeValue;
+            }
+
+            // ✅ ใส่คำค้นหา (Search Bar)
+            if (searchKeyword && searchKeyword.trim() !== '') {
+                params.keyword = searchKeyword;
             }
 
             const response = await api.get('/listings', { params });
             let data: Listing[] = formatListingsResponse(response.data);
 
-            // ⭐️ 2. คำนวณระยะทางให้แต่ละสินค้า
+            // 2. คำนวณระยะทางให้แต่ละสินค้า
             data = data.map(item => {
                 if (item.location_geom && item.location_geom.coordinates) {
                     const [lon, lat] = item.location_geom.coordinates;
@@ -142,11 +150,13 @@ const HomeScreen: React.FC = () => {
                 return { ...item, distance: null };
             });
 
+            // กรองระยะทาง (Dropdown Area)
             if (areaValue && areaValue !== 'all') {
                 const maxDistance = parseInt(areaValue, 10);
                 data = data.filter(item => item.distance !== null && item.distance <= maxDistance);
             }
 
+            // เรียงลำดับราคา (Dropdown Price)
             if (priceValue && priceValue !== 'all') {
                 if (priceValue === 'price_asc') {
                     data = [...data].sort((a, b) => a.price_per_unit - b.price_per_unit);
@@ -161,14 +171,17 @@ const HomeScreen: React.FC = () => {
         } finally {
             setIsFetching(false);
         }
-    }, [typeValue, areaValue, priceValue]);
+    // ✅ เพิ่ม searchKeyword ใน dependency array เพื่อให้โหลดใหม่เมื่อค่าเปลี่ยน
+    }, [typeValue, areaValue, priceValue, searchKeyword]);
 
     useEffect(() => {
         fetchListings();
     }, [fetchListings]);
 
+    // ✅ ฟังก์ชันค้นหา: เมื่อกด Enter หรือปุ่มค้นหาใน SearchBar
     const handleSearch = (query: string) => {
-        Alert.alert("ค้นหาสำเร็จ", `คุณค้นหา: "${query}"`);
+        setSearchKeyword(query); 
+        // พอ setSearchKeyword เปลี่ยน -> useEffect จะทำงาน -> fetchListings จะถูกเรียกใหม่พร้อม params.keyword
     };
 
     const handleBannerPress = () => {
@@ -182,6 +195,7 @@ const HomeScreen: React.FC = () => {
         });
     };
 
+    // Dropdown Handlers
     const onOpenType = () => {
         setAreaOpen(false); setPriceOpen(false); setDistanceOpen(false);
         setTypeOpen(true);
@@ -201,9 +215,8 @@ const HomeScreen: React.FC = () => {
         else if (tab === 'list') router.push('/buyer/historyDemand');
         else if (tab === 'add') router.push('/buyer/createDemand');
         else if (tab === 'notify') router.push('/buyer/notificationDemand');
-        else if (tab === 'profile') return;
+        else if (tab === 'profile') return; // ปกติน่าจะไป router.push('/buyer/buyerProfile')
     };
-
 
     return (
         <SafeAreaView style={styles.fullScreen}>
@@ -213,16 +226,17 @@ const HomeScreen: React.FC = () => {
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}
                     onScrollBeginDrag={() => {
+                        // ปิด Dropdown เมื่อเริ่มเลื่อนหน้าจอ
                         setTypeOpen(false);
                         setAreaOpen(false);
                         setPriceOpen(false);
                     }}
                 >
-
                     <View style={[styles.componentContainer, { paddingHorizontal: 15 }]}>
+                        {/* ✅ เชื่อมต่อ handleSearch */}
                         <SearchBar
                             onSearch={handleSearch}
-                            placeholder="ลองค้นหาสินค้าที่นี่..."
+                            placeholder="ค้นหา ทุเรียน, เกรด A..."
                         />
                     </View>
 
@@ -296,7 +310,7 @@ const HomeScreen: React.FC = () => {
                                 }
                             }
 
-                            // ⭐️ 3. แสดงผลระยะทาง (ถ้ามี)
+                            // แสดงผลระยะทาง
                             const distanceText = (item.distance !== undefined && item.distance !== null)
                                 ? `${item.distance.toFixed(1)} กม.` 
                                 : 'ไม่ระบุ';
@@ -307,7 +321,7 @@ const HomeScreen: React.FC = () => {
                                 price={item.price_per_unit}
                                 unit={item.unit}
                                 grade={item.grade || '-'}
-                                distance={distanceText} // ✅ ส่งค่าระยะทางไปแสดง
+                                distance={distanceText}
                                 imageUrl={fullImageUrl}
                                 onPress={() => handleProductPress(item.id)}
                             />
@@ -317,7 +331,7 @@ const HomeScreen: React.FC = () => {
                         contentContainerStyle={styles.productList}
                         scrollEnabled={false}
                         ListEmptyComponent={() => (
-                             <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>ไม่พบสินค้า</Text>
+                             <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>ไม่พบสินค้าที่คุณค้นหา</Text>
                         )} 
                     />
 

@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   TouchableOpacity,
   TextInput,
-  Image,
   Alert,
   ActivityIndicator
 } from 'react-native';
@@ -16,9 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// 🟢 กำหนด Base URL (Emulator ใช้ 10.0.2.2)
-const IMAGE_BASE_URL = 'http://10.0.2.2:3000'; 
-
 interface OrderDetails {
     id: number;
     quantity_ordered: string;
@@ -26,8 +22,6 @@ interface OrderDetails {
     status: string;
     Listing: {
         product_name: string;
-        // รองรับ image_url เป็น array string
-        image_url?: string[] | null; 
     };
     Buyer: {
         fullname: string;
@@ -48,14 +42,11 @@ const VerifyPickupScreen = () => {
     const fetchOrder = async () => {
         try {
             const token = await AsyncStorage.getItem('userToken');
-            
-            // เรียก API ประวัติการขายทั้งหมด (ที่มีอยู่แล้ว)
             const response = await api.get('/orders/history/sales', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
             const allOrders = response.data;
-            // ค้นหา Order ที่ต้องการจากรายการทั้งหมด
             const targetOrder = allOrders.find((o: OrderDetails) => o.id == Number(orderId));
 
             if (targetOrder) {
@@ -87,8 +78,6 @@ const VerifyPickupScreen = () => {
     setLoading(true);
     try {
         const token = await AsyncStorage.getItem('userToken');
-        
-        // API ยืนยัน (confirm)
         await api.post(`/orders/${orderId}/confirm`, {
             confirmation_code: code.trim()
         }, {
@@ -109,30 +98,6 @@ const VerifyPickupScreen = () => {
       return <SafeAreaView style={styles.safeArea}><ActivityIndicator size="large" color="#0056b3" style={{marginTop:50}}/></SafeAreaView>;
   }
 
-  // 🟢 Logic จัดการรูปภาพ (ดึงรูปแรกจาก array)
-  const getProductImageSource = () => {
-      const rawPath = orderData?.Listing?.image_url?.[0]; // ดึงรูปแรก
-      
-      if (!rawPath) return { uri: 'https://via.placeholder.com/150?text=No+Image' };
-
-      let cleanPath = rawPath.replace(/['"]+/g, '').replace(/\\/g, '/');
-      let finalUrl = '';
-
-      if (cleanPath.startsWith('content://') || cleanPath.startsWith('file://')) {
-          finalUrl = cleanPath;
-      } else if (cleanPath.startsWith('http')) {
-          finalUrl = cleanPath;
-      } else {
-          // ถ้าเป็น path บน server
-          cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
-          if (!cleanPath.startsWith('uploads/')) {
-              cleanPath = `uploads/${cleanPath}`;
-          }
-          finalUrl = `${IMAGE_BASE_URL}/${cleanPath}`;
-      }
-      return { uri: finalUrl };
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -144,35 +109,46 @@ const VerifyPickupScreen = () => {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
             
-          <View style={styles.itemContainer}>
-            {/* 🟢 แสดงรูปภาพ */}
-            <Image 
-                source={getProductImageSource()} 
-                style={styles.itemImage} 
-                resizeMode="cover" // เพิ่ม resizeMode ให้รูปไม่เพี้ยน
-            />
-            
-            <View style={styles.itemInfo}>
-              {/* แสดงข้อมูลที่หาเจอ */}
-              <Text style={styles.sellerName}>
-                  ผู้ซื้อ: {orderData?.Buyer?.fullname || 'ลูกค้าทั่วไป'}
-              </Text>
-              <Text style={styles.itemText}>
-                  สินค้า: {orderData?.Listing?.product_name}
-              </Text>
-              <Text style={styles.itemText}>
-                จำนวน: {orderData ? parseFloat(orderData.quantity_ordered).toFixed(0) : '-'} หน่วย
-              </Text>
-              <Text style={styles.itemText}>
-                ยอดเงิน: {orderData ? parseFloat(orderData.total_price).toLocaleString() : '-'} บาท
-              </Text>
-            </View>
+          {/* ส่วนที่ 1: ข้อมูลผู้ซื้อ */}
+          <View style={styles.rowDetail}>
+            <Text style={styles.detailLabel}>ผู้ซื้อ:</Text>
+            <Text style={styles.buyerValue}>
+                 {orderData?.Buyer?.fullname || 'ลูกค้าทั่วไป'}
+            </Text>
           </View>
 
-          <Text style={styles.label}>กรอกรหัสสินค้าจากผู้ซื้อ</Text>
+          <View style={styles.divider} />
+
+          {/* ✅ ส่วนที่ 2: ปรับให้เป็นแนวนอน (ซ้าย: หัวข้อ, ขวา: ชื่อสินค้า) */}
+          <View style={styles.rowDetail}>
+            <Text style={styles.detailLabel}>สินค้าที่สั่งซื้อ:</Text>
+            <Text style={styles.productNameRight}>
+                {orderData?.Listing?.product_name}
+            </Text>
+          </View>
+
+          {/* รายละเอียด จำนวน */}
+          <View style={styles.rowDetail}>
+            <Text style={styles.detailLabel}>จำนวน:</Text>
+            <Text style={styles.detailValue}>
+                {orderData ? parseFloat(orderData.quantity_ordered).toFixed(0) : '-'} กก.
+            </Text>
+          </View>
+
+          {/* รายละเอียด ยอดรวม */}
+          <View style={styles.rowDetail}>
+            <Text style={styles.detailLabel}>ยอดรวม:</Text>
+            <Text style={styles.priceValue}>
+                {orderData ? parseFloat(orderData.total_price).toLocaleString() : '-'} บาท
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <Text style={styles.inputLabel}>กรอกรหัสยืนยัน (Code)</Text>
           <TextInput
             style={styles.inputBox}
-            placeholder="กรอกรหัส 6 หลัก (เช่น ABC123)"
+            placeholder="Ex. ABC123"
             value={code}
             onChangeText={setCode}
             maxLength={10}
@@ -208,67 +184,83 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 16,
     paddingTop: 24,
+    alignItems: 'center', 
   },
   card: {
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 24,
+    width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 5,
+    shadowRadius: 4,
     elevation: 3,
   },
-  itemContainer: {
-    flexDirection: 'row',
-    marginBottom: 20,
+  // Layout แบบแนวนอน (ซ้าย-ขวา)
+  rowDetail: {
+      flexDirection: 'row',
+      justifyContent: 'space-between', // หัวท้ายแยกกัน
+      alignItems: 'center',
+      marginBottom: 16, // เพิ่มระยะห่างระหว่างบรรทัดนิดหน่อยให้อ่านง่าย
+      width: '100%',
   },
-  itemImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: '#e0e0e0', 
-    marginRight: 16,
-    borderWidth: 1,         // ใส่ขอบเล็กน้อย
-    borderColor: '#f0f0f0'
+  detailLabel: {
+      fontSize: 16,
+      color: '#666', 
   },
-  itemInfo: {
-    flex: 1,
-    justifyContent: 'center',
+  buyerValue: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: '#333',
   },
-  sellerName: {
-    fontSize: 16,
+  // ✅ สไตล์สำหรับชื่อสินค้า (ชิดขวา + สีน้ำเงิน)
+  productNameRight: { 
+    fontSize: 22,
+    color: '#0056b3',
     fontWeight: 'bold',
-    color: '#333',
+    textAlign: 'right', 
   },
-  itemText: {
-    fontSize: 14,
-    color: '#555',
-    marginTop: 2,
+  detailValue: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#333',
   },
-  label: {
+  priceValue: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: '#28a745',
+  },
+  divider: {
+      height: 1,
+      backgroundColor: '#eee',
+      width: '100%',
+      marginVertical: 16,
+  },
+  inputLabel: {
     fontSize: 16,
     fontWeight: '500',
     color: '#333',
-    marginTop: 10,
-    marginBottom: 8,
+    marginBottom: 12,
+    textAlign: 'center', 
   },
   inputBox: {
     backgroundColor: '#f8f9fa',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingVertical: 12,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    fontSize: 16,
+    fontSize: 18,
     textAlign: 'center',
+    marginBottom: 24,
+    letterSpacing: 1,
   },
   buttonSolid: {
     backgroundColor: '#28a745',
-    borderRadius: 8,
-    paddingVertical: 14,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 20,
   },
   buttonSolidText: {
     color: 'white',
@@ -276,13 +268,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   pageTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#074E9F',
     marginTop: 70,
     marginBottom: 10,
-    marginLeft: 100, 
-    paddingLeft: 20,
+    textAlign: 'center', 
+    width: '100%',
   },
 });
 

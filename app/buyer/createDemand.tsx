@@ -14,124 +14,155 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 
-// (สมมติว่าคุณมีไฟล์ Dropdown ที่ path นี้)
+// Component UI
 import CustomDropdown from '../../components/ui/Dropdown';
+import CustomModal from '../../components/ui/Modal'; 
 
-// --- [แก้ไข] นำเข้า Axios Instance และ useAuth ---
 import api from '../../services/api';
 import { useAuth } from '../context/AuthContext'; 
 
 const CreateDemandScreen = () => {
   const router = useRouter();
-  // ดึง Token และสถานะโหลด Auth (จำเป็นต้องถูกห่อหุ้มด้วย AuthProvider)
   const { token, isLoading: authLoading } = useAuth(); 
 
-  // --- 1. States for Form Data ---
+  // --- States for Form Data ---
   const [product_name, setProduct_Name] = useState<string | null>(null);
   const [quantity_total, setQuantity_Total] = useState('');
   const [price_per_unit, setPrice_Per_Unit] = useState(''); 
 
-  // --- 2. States for UI (Dropdown) ---
-  const [open, setOpen] = useState(false); // ใช้ open สำหรับ Dropdown เดียว
+  // --- States for UI ---
+  const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Array<{ label: string; value: string }>>([]);
   const [productsLoading, setProductsLoading] = useState(false); 
-  
-  // --- สถานะโหลดตอนกด "ยืนยัน" ---
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- ดึงข้อมูลสินค้าสำหรับ Dropdown ---
-  // --- ดึงข้อมูลสินค้าสำหรับ Dropdown ---
-useEffect(() => {
-  // 1. เช็คว่า useEffect ทำงานหรือไม่
-  console.log("🟢 1. useEffect Triggered"); 
-  console.log("   - Token:", token ? "มี Token" : "ไม่มี Token");
-  console.log("   - AuthLoading:", authLoading);
+  // --- State สำหรับ Modal แนะนำราคา ---
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [modalPrice, setModalPrice] = useState('');     // ราคาต่ำสุด - สูงสุด
+  const [modalAvg, setModalAvg] = useState('');         // ✅ เพิ่ม State ราคาเฉลี่ย
+  const [modalProduct, setModalProduct] = useState('');
+  const [fetchingPrice, setFetchingPrice] = useState(false);
 
-  const fetchProductOptions = async () => {
-    // 2. เช็คเงื่อนไขก่อน Return
-    if (!token || authLoading) {
-      console.log("🔴 2. ติดเงื่อนไข Token หรือ Loading -> จบการทำงาน");
-      return;
-    }
+  // ✅ Effect 1: ดึงราคาตลาดจริง (Min, Max, Avg)
+  useEffect(() => {
+    const fetchMarketPrice = async () => {
+      if (!product_name || !token) return;
 
-    console.log("🟡 3. กำลังเริ่มยิง API...");
-    setProductsLoading(true);
-    
-    try {
-      // ลองใส่ URL เต็มๆ เพื่อเช็คว่าไม่ได้ผิดที่ BaseURL (ถ้าจำเป็น)
-      const response = await api.get(`/demands/products`); 
-      
-      console.log("🟢 4. API Response Success:", response.data); // <--- ข้อมูลต้องโผล่ตรงนี้
+      setFetchingPrice(true);
+      try {
+        const response = await api.get('/prices/real-market', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-      const productList: string[] = response.data;
-      const dropdownItems = productList.map(product => ({
-        label: product,
-        value: product,
-      }));
+        const allPrices = response.data;
+        const productPrices = allPrices.filter((p: any) => p.product_name === product_name);
 
-      const fixedItems = [
-      { label: 'ทุเรียน', value: 'ทุเรียน' },
-      { label: 'มะม่วง', value: 'มะม่วง' },
-      { label: 'องุ่น', value: 'องุ่น' },
-      { label: 'มังคุด', value: 'มังคุด' },
-    ];
+        if (productPrices.length > 0) {
+          // ดึงราคาออกมาเป็น Array
+          const prices = productPrices.map((p: any) => parseFloat(p.average_price));
+          
+          // 1. หา Min/Max
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
 
-    setItems(fixedItems);
-    setProductsLoading(false);
+          // 2. ✅ หาค่าเฉลี่ย (Average)
+          const sumPrice = prices.reduce((a: number, b: number) => a + b, 0);
+          const avgPrice = (sumPrice / prices.length).toFixed(2); // ทศนิยม 2 ตำแหน่ง
 
-    } catch (error: any) {
-      console.error("🔴 5. API Error:", error); // <--- ถ้า Error จะโผล่ตรงนี้
-      Alert.alert('ผิดพลาด', error.response?.data?.message || 'ไม่สามารถดึงข้อมูลสินค้าได้');
-    } finally {
-      setProductsLoading(false);
-      console.log("⚪ 6. Finished Loading");
-    }
-  };
+          setModalProduct(product_name);
+          setModalAvg(avgPrice); // เซ็ตค่าเฉลี่ย
+          
+          if (minPrice === maxPrice) {
+            setModalPrice(`${minPrice}`);
+          } else {
+            setModalPrice(`${minPrice} - ${maxPrice}`);
+          }
+          
+          setModalVisible(true);
+        } else {
+          console.log(`ยังไม่มีประวัติราคาซื้อขายสำเร็จของ ${product_name}`);
+        }
 
-  fetchProductOptions();
-}, [token, authLoading]);
+      } catch (error) {
+        console.error("Failed to fetch market price:", error);
+      } finally {
+        setFetchingPrice(false);
+      }
+    };
 
-  // --- 3. ฟังก์ชันสำหรับปุ่ม ---
+    fetchMarketPrice();
+  }, [product_name, token]);
+
+  // --- Effect 2: ดึงตัวเลือกสินค้า ---
+  useEffect(() => {
+    const fetchProductOptions = async () => {
+      if (!token || authLoading) return;
+      setProductsLoading(true);
+      try {
+        const fixedItems = [
+          { label: 'ทุเรียน', value: 'ทุเรียน' },
+          { label: 'มะม่วง', value: 'มะม่วง' },
+          { label: 'องุ่น', value: 'องุ่น' },
+          { label: 'มังคุด', value: 'มังคุด' },
+        ];
+        setItems(fixedItems);
+      } catch (error: any) {
+        console.error("API Error:", error);
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+    fetchProductOptions();
+  }, [token, authLoading]);
+
+  // --- ฟังก์ชันปุ่ม ---
   const handleCancel = () => {
-    // ป้องกันการทำงานขณะ Submit
     if (isSubmitting) return; 
     router.back();
   };
 
   const handleConfirm = async () => {
-    // --- 4. ตรวจสอบข้อมูล ---
     if (!product_name || !quantity_total) {
       Alert.alert('ข้อมูลไม่ครบ', 'กรุณาเลือกสินค้าและระบุจำนวน');
       return;
     }
 
-    if (isSubmitting || !token) return; // ป้องกันการกดย้ำ & ต้องมี Token
+    const qty = parseFloat(quantity_total);
+    const price = price_per_unit ? parseFloat(price_per_unit) : 0; 
+
+    if (isNaN(qty)) {
+      Alert.alert('ข้อมูลผิดพลาด', 'กรุณาระบุจำนวนเป็นตัวเลขเท่านั้น');
+      return;
+    }
+
+    if (isSubmitting) return;
+    if (!token) {
+      Alert.alert('ผิดพลาด', 'ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่');
+      return;
+    }
+
     setIsSubmitting(true); 
 
     try {
-      await api.post(`/demands`, { 
+      const payload = { 
         product_name: product_name,
-        desired_quantity: parseFloat(quantity_total),
-        desired_price: price_per_unit ? parseFloat(price_per_unit) : null,
+        desired_quantity: qty,
+        desired_price: price,
         unit: 'กก.', 
+      };
+
+      await api.post(`/demands`, payload, {
+        headers: { Authorization: `Bearer ${token}` } 
       });
 
-      Alert.alert('ส่งสำเร็จ', 'คำขอของคุณถูกบันทึกแล้ว', [
-        { 
-          text: 'ตกลง', 
-          onPress: () => {
-            // ใช้ replace เพื่อไม่ให้ย้อนกลับมาหน้าฟอร์มได้
-            router.replace('/buyer/homeBuyer'); 
-          }
-        }
+      Alert.alert('สำเร็จ', 'คำขอของคุณถูกบันทึกแล้ว', [
+        { text: 'ตกลง', onPress: () => router.replace('/buyer/homeBuyer') }
       ]);
 
     } catch (error: any) { 
       console.error('Create Demand Failed:', error);
-      Alert.alert(
-        'เกิดข้อผิดพลาด', 
-        error.response?.data?.message || error.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้'
-      );
+      const serverMessage = error.response?.data?.message || error.response?.data?.error;
+      Alert.alert('เกิดข้อผิดพลาด', serverMessage || 'เซิร์ฟเวอร์ขัดข้อง (500)');
     } finally {
       setIsSubmitting(false);
     }
@@ -142,37 +173,33 @@ useEffect(() => {
       <Stack.Screen options={{ title: '' }} />
 
       <ScrollView contentContainerStyle={styles.container}>
-
-        {/* Header Title แบบ Custom ตาม Design */}
-          <View style={styles.headerContainer}>
-            <Text style={styles.mainTitle}>ความต้องการ</Text>
-          </View>
+        <View style={styles.headerContainer}>
+          <Text style={styles.mainTitle}>ความต้องการ</Text>
+        </View>
 
         <View style={styles.card}>
-          {/* --- 1. สินค้า (Dropdown) --- */}
+          {/* --- 1. สินค้า --- */}
           <Text style={styles.label}>สินค้า</Text>
           <View style={{ zIndex: 2000 }}>
-          <CustomDropdown
-            open={open}
-            setOpen={setOpen}
-            value={product_name}
-            items={items}
-            setValue={setProduct_Name}
-            setItems={setItems}
-            placeholder="เลือกสินค้าที่ต้องการ"
-            style={styles.dropdownStyle} 
-            dropDownContainerStyle={styles.dropdownContainerStyle}
-            loading={productsLoading}
-            disabled={isSubmitting}
-            // 🔴 แก้ตรงนี้: เปลี่ยนจาก SCROLLVIEW เป็น MODAL
-            listMode="MODAL" 
-            // (Optional) ปรับแต่งหัวข้อ Modal ได้
-            modalTitle="เลือกสินค้า"
-            modalAnimationType="slide"
-          />
+            <CustomDropdown
+              open={open}
+              setOpen={setOpen}
+              value={product_name}
+              items={items}
+              setValue={setProduct_Name}
+              setItems={setItems}
+              placeholder="เลือกสินค้าที่ต้องการ"
+              style={styles.dropdownStyle} 
+              dropDownContainerStyle={styles.dropdownContainerStyle}
+              loading={productsLoading}
+              disabled={isSubmitting}
+              listMode="MODAL" 
+              modalTitle="เลือกสินค้า"
+              modalAnimationType="slide"
+            />
           </View>
 
-          {/* --- 2. จำนวน (TextInput) --- */}
+          {/* --- 2. จำนวน --- */}
           <Text style={styles.label}>จำนวน (กิโลกรัม)</Text>
           <TextInput
             style={styles.inputBox}
@@ -180,10 +207,10 @@ useEffect(() => {
             value={quantity_total}
             onChangeText={setQuantity_Total}
             keyboardType="numeric"
-            editable={!isSubmitting} // --- [NEW] ---
+            editable={!isSubmitting}
           />
 
-          {/* --- 🟢 3. เพิ่ม: ราคาเสนอซื้อ (TextInput) --- */}
+          {/* --- 3. ราคาเสนอซื้อ --- */}
           <Text style={styles.label}>เสนอราคา (บาท/กก.)</Text>
           <TextInput
             style={styles.inputBox}
@@ -205,7 +232,7 @@ useEffect(() => {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.button, styles.buttonSolid, isSubmitting && styles.buttonDisabled]} // --- [NEW] ---
+              style={[styles.button, styles.buttonSolid, isSubmitting && styles.buttonDisabled]}
               onPress={handleConfirm}
               disabled={isSubmitting}
             >
@@ -218,42 +245,56 @@ useEffect(() => {
           </View>
         </View>
       </ScrollView>
+
+      {/* ✅ Modal แสดงราคาตลาด + ราคาเฉลี่ย */}
+      <CustomModal 
+        isVisible={isModalVisible} 
+        onClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContentContainer}>
+          <Text style={styles.modalTitle}>คำแนะนำราคาตลาด</Text>
+          <Text style={styles.modalText}>
+            อ้างอิงจากการซื้อขายจริงของ{"\n"}
+            {modalProduct} มีราคาอยู่ที่{"\n"}
+            <Text style={{ fontWeight: 'bold', color: '#28a745', fontSize: 22 }}>
+               {modalPrice} บาท/กก.
+            </Text>
+            {"\n\n"}
+            {/* ✅ แสดงราคาเฉลี่ย */}
+            <Text style={{ fontSize: 16, color: '#555' }}>
+                (ราคาเฉลี่ย: <Text style={{ fontWeight: 'bold', color: '#0056b3' }}>{modalAvg}</Text> บาท)
+            </Text>
+          </Text>
+
+          <TouchableOpacity 
+            style={styles.modalButton} 
+            onPress={() => setModalVisible(false)}
+          >
+            <Text style={styles.modalButtonText}>รับทราบ</Text>
+          </TouchableOpacity>
+        </View>
+      </CustomModal>
+
     </SafeAreaView>
   );
 };
 
-// --- Stylesheet (เหมือนเดิม) ---
+// --- Stylesheet ---
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#f4f4f4',
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    justifyContent: 'center', // จัดให้อยู่กลางในแนวตั้ง
-    paddingBottom: 40,
   },
   container: {
     flexGrow: 1,
     padding: 16,
     paddingTop: 24,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0056b3',
-    marginHorizontal: 16,
-    marginTop: 70,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
   card: {
     backgroundColor: 'white',
-    borderRadius: 24, // ความโค้งมนของ Card
+    borderRadius: 24,
     paddingVertical: 40,
     paddingHorizontal: 24,
-    // Shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -262,13 +303,13 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     marginBottom: 30,
-    marginTop: 60, // เผื่อพื้นที่ให้ Back Button ด้านบน
+    marginTop: 60,
     alignItems: 'center',
   },
   mainTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#0047AB', // สีน้ำเงินเข้ม (Cobalt Blue) ให้เหมือนรูป
+    color: '#0047AB',
   },
   label: {
     fontSize: 16,
@@ -278,7 +319,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   inputBox: {
-    backgroundColor: '#EFF6FF', // สีฟ้าอ่อนจางๆ (Alice Blue / Light Blue)
+    backgroundColor: '#EFF6FF',
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 16,
@@ -289,7 +330,7 @@ const styles = StyleSheet.create({
   dropdownStyle: {
     backgroundColor: '#EFF6FF',
     borderRadius: 12,
-    borderWidth: 0, // ลบขอบออกเพื่อให้เหมือน Input
+    borderWidth: 0,
   },
   dropdownContainerStyle: {
     backgroundColor: '#fff',
@@ -327,6 +368,35 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     backgroundColor: '#9e9e9e',
+  },
+  modalContentContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#0056b3', 
+    marginBottom: 15,
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 25,
+    lineHeight: 24,
+  },
+  modalButton: {
+    backgroundColor: '#28a745', 
+    borderRadius: 25, 
+    paddingVertical: 12,
+    paddingHorizontal: 50,
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

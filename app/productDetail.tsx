@@ -109,33 +109,33 @@ export default function ProductDetailScreen() {
                 const response = await api.get(`/listings/${id}`);
                 const currentItem = response.data;
                 setListing(currentItem);
+
                 if (currentItem?.product_name) {
                     try {
-                        const marketResponse = await api.get('/listings', {
-                            params: { product_name: currentItem.product_name }
-                        });
+                        // ✅ เปลี่ยนเป็นดึงข้อมูลจาก /prices/real-market (ซื้อขายสำเร็จ)
+                        const marketResponse = await api.get('/prices/real-market');
+                        const allData = marketResponse.data;
 
-                        // จัดการ Format ข้อมูล (เผื่อ API ส่งมาเป็น { items: [] } หรือ [])
-                        let marketList = [];
-                        if (Array.isArray(marketResponse.data)) marketList = marketResponse.data;
-                        else if (marketResponse.data?.items) marketList = marketResponse.data.items;
+                        // กรองเฉพาะสินค้าที่ชื่อตรงกัน
+                        const productData = allData.filter((item: any) => item.product_name === currentItem.product_name);
 
                         // แปลงข้อมูลเป็นกราฟ
-                        if (marketList.length > 0) {
-                            // เรียงตามวันที่สร้าง (เก่า -> ใหม่)
-                            const sortedList = marketList.sort((a:any, b:any) => 
-                                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                        if (productData.length > 0) {
+                            // เรียงตามวันที่ (เก่า -> ใหม่)
+                            const sortedList = productData.sort((a:any, b:any) => 
+                                new Date(a.record_date).getTime() - new Date(b.record_date).getTime()
                             );
 
                             // ตัดมาแค่ 6 รายการล่าสุด
                             const recentList = sortedList.slice(-6);
 
+                            // Map ข้อมูล: record_date และ average_price
                             const labels = recentList.map((item:any) => {
-                                const d = new Date(item.created_at);
+                                const d = new Date(item.record_date);
                                 return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
                             });
 
-                            const prices = recentList.map((item:any) => parseFloat(item.price_per_unit));
+                            const prices = recentList.map((item:any) => parseFloat(item.average_price));
 
                             // ถ้ามีข้อมูลจุดเดียว ให้เพิ่มจุดหลอกเพื่อให้กราฟลากเส้นได้สวยงาม
                             if (prices.length === 1) {
@@ -150,10 +150,12 @@ export default function ProductDetailScreen() {
                                     color: (opacity = 1) => `rgba(0, 86, 179, ${opacity})`,
                                 }]
                             });
+                        } else {
+                            // ถ้าไม่มีประวัติการซื้อขาย ให้กราฟเป็น null (หรือจะแสดง default ก็ได้)
+                            setGraphData(null);
                         }
-                        } catch (err) {
+                    } catch (err) {
                         console.log("Market price fetch error:", err);
-                        // ถ้าดึงไม่ได้ ให้ใช้ข้อมูลปัจจุบันสร้างกราฟเส้นตรง
                         setGraphData(null);
                     }
                 }
@@ -247,8 +249,9 @@ export default function ProductDetailScreen() {
     };
 
     const currentPrice = listing ? parseFloat(listing.price_per_unit) : 0;
+    // กรณีไม่มีข้อมูลกราฟ ให้แสดงราคาปัจจุบันเป็นเส้นตรง
     const defaultGraphData = {
-        labels: ["ตลาด", "ปัจจุบัน"],
+        labels: ["อดีต", "ปัจจุบัน"],
         datasets: [{ data: [currentPrice, currentPrice] }]
     };
 
@@ -264,17 +267,7 @@ export default function ProductDetailScreen() {
 
     if (!listing) return null;
 
-    // Image Handling
-    const imagePath = listing?.image_url?.[0];
-    let fullImageUrl = 'https://via.placeholder.com/600'; 
-    if (imagePath) {
-        const cleanPath = imagePath.replace(/\\/g, '/');
-        if (cleanPath.startsWith('http')) fullImageUrl = cleanPath;
-        else {
-             const path = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-             fullImageUrl = `${IMAGE_BASE_URL}${path}`;
-        }
-    }
+    // Image Handling (Duplicate logic removed, using listingImageUrl)
 
     // 2. ถ้าโหลดเสร็จแล้ว แต่ listing ยังเป็น null (หาไม่เจอ/Error)
     if (!listing) {
@@ -370,7 +363,7 @@ export default function ProductDetailScreen() {
                         )}
 
                         {/* 3. Price Graph Area */}
-                        <Text style={styles.graphTitle}>กราฟราคา</Text>
+                        <Text style={styles.graphTitle}>ราคาตลาด (จากการซื้อขายสำเร็จ)</Text>
                         <View style={styles.chartContainer}>
                             {/* LineChart Rendering */}
                             <LineChart
@@ -395,16 +388,6 @@ export default function ProductDetailScreen() {
                     {/* Placeholder for space above Navbar */}
                     <View style={{ height: 20 }} />
                 </ScrollView>
-
-                {/* 5. Bottom Navbar */}
-                {/* <BuyerNavbar
-                    onHomePress={() => handleNavPress('home')}
-                    onListPress={() => handleNavPress('list')}
-                    onAddPress={() => handleNavPress('add')}
-                    onNotifyPress={() => handleNavPress('notify')}
-                    onProfilePress={() => setActiveTab('profile')}
-                    activeTab={activeTab}
-                /> */}
             </View>
         </SafeAreaView>
     )

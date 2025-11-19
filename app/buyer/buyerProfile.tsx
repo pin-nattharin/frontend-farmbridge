@@ -93,31 +93,21 @@ const BuyerProfileScreen = () => {
                 {
                     text: "ออกจากระบบ",
                     onPress: async () => { 
-                        console.log("🟢 [Logout Step 1] User confirmed logout");
                        try {
                             const token = await AsyncStorage.getItem('userToken');
-                            console.log("🔵 [Logout Step 2] Current Token found:", token ? "Yes" : "No");
                             if (token) {
-                                console.log("🟡 [Logout Step 3] Calling API /auth/logout...");
                                 await api.post('/auth/logout', {}, {
                                     headers: { Authorization: `Bearer ${token}` }
-                                })
-                                .then(() => console.log("✅ [Logout Step 4] API Logout Success"))
-                                .catch((err) => console.log("⚠️ [Logout Step 4] API Logout Failed (Network or Token invalid):", err.message));
+                                }).catch((err) => console.log("Logout API Error:", err.message));
                             }
-                            await AsyncStorage.removeItem('userToken');
-                            await AsyncStorage.removeItem('userData');
-                            router.replace('/LoginScreen');
                         } catch (e) {
-                             console.error("🔴 [Logout Error] Process failed:", e);
+                             console.error("Logout Error:", e);
                         } finally {
-                            console.log("🟠 [Logout Step 5] Clearing AsyncStorage...");
-                            // ⭐️ บังคับล้าง Token ในเครื่องเสมอ ไม่ว่าจะยิง API สำเร็จหรือไม่
                             await AsyncStorage.removeItem('userToken');
                             await AsyncStorage.removeItem('userData');
                             
-                            console.log("⚫ [Logout Step 6] Storage cleared. Navigating to LoginScreen.");
-                            router.replace('./index');
+                            // 🔴 แก้ตรงนี้ครับ: เปลี่ยนจาก './index' เป็น '/LoginScreen'
+                            router.replace('/home'); 
                         }
                     },
                     style: "destructive"

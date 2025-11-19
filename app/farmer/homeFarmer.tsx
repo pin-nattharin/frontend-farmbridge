@@ -24,7 +24,6 @@ interface Listing {
         address: string;
     };
     distance: number | null;
-    // ⭐️ รองรับพิกัดจาก Backend
     location_geom?: {
         type: string;
         coordinates: number[]; // [lng, lat]
@@ -54,7 +53,7 @@ const priceItems = [
     { label: 'สูง-ต่ำ', value: 'price_desc' },
 ];
 
-// ⭐️ 1. ฟังก์ชันคำนวณระยะทาง (Haversine)
+// 1. ฟังก์ชันคำนวณระยะทาง (Haversine)
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     if (!lat1 || !lon1 || !lat2 || !lon2) return null;
     const R = 6371; // รัศมีโลก (km)
@@ -83,9 +82,9 @@ const HomeScreen: React.FC = () => {
 
     const [listings, setListings] = useState<Listing[]>([]); 
     const [isFetching, setIsFetching] = useState(true);
-    const IMAGE_BASE_URL = 'http://192.168.0.102:3000'
-
-    //const userLocation = { lat: 13.7563, lng: 100.5018 }; 
+    
+    // ✅ แก้ไข 1: ใช้ IP เดียวกับ homeBuyer (ถ้าเทสบนเครื่องจริงต้องใช้ IP นี้ หรือถ้า Emulator ใช้ 10.0.2.2)
+    const IMAGE_BASE_URL = 'http://10.121.227.165:3000';
 
     // Dropdown States
     const [typeOpen, setTypeOpen] = useState(false);
@@ -102,6 +101,8 @@ const HomeScreen: React.FC = () => {
 
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
+    const [searchKeyword, setSearchKeyword] = useState<string>('');
+
     const formatListingsResponse = (payload: any): Listing[] => {
         if (Array.isArray(payload)) return payload;
         if (payload?.items && Array.isArray(payload.items)) return payload.items;
@@ -111,10 +112,8 @@ const HomeScreen: React.FC = () => {
     const handleFetchError = (error: any) => {
         const status = error?.response?.status;
         const backendMessage = error?.response?.data?.message;
-        const fallbackMessage = backendMessage || (status ? `เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (${status})` : 'ไม่สามารถดึงรายการสินค้าได้');
         console.error('Failed to fetch listings:', {
             status,
-            data: error?.response?.data,
             message: error?.message
         });
     };
@@ -122,16 +121,19 @@ const HomeScreen: React.FC = () => {
     const fetchListings = useCallback(async () => {
         setIsFetching(true);
         try {
-            const params: { product_name?: string; status?: string } = { status: 'available' };
+            const params: { product_name?: string; status?: string; keyword?: string } = { status: 'available' };
             
             if (typeValue && typeValue !== 'all') {
                 params.product_name = typeValue;
             }
 
+            if (searchKeyword && searchKeyword.trim() !== '') {
+                params.keyword = searchKeyword;
+            }
+
             const response = await api.get('/listings', { params });
             let data: Listing[] = formatListingsResponse(response.data);
 
-            // ⭐️ 2. คำนวณระยะทางให้แต่ละสินค้า
             data = data.map(item => {
                 if (item.location_geom && item.location_geom.coordinates) {
                     const [lon, lat] = item.location_geom.coordinates;
@@ -160,14 +162,14 @@ const HomeScreen: React.FC = () => {
         } finally {
             setIsFetching(false);
         }
-    }, [typeValue, areaValue, priceValue]);
+    }, [typeValue, areaValue, priceValue, searchKeyword]);
 
     useEffect(() => {
         fetchListings();
     }, [fetchListings]);
 
     const handleSearch = (query: string) => {
-        Alert.alert("ค้นหาสำเร็จ", `คุณค้นหา: "${query}"`);
+        setSearchKeyword(query); 
     };
 
     const handleBannerPress = () => {
@@ -200,9 +202,8 @@ const HomeScreen: React.FC = () => {
         else if (tab === 'chart') router.push('/farmer/dashboard');
         else if (tab === 'add') router.push('/farmer/createPost');
         else if (tab === 'notifications') router.push('/farmer/notification');
-        else if (tab === 'profile') return;
+        else if (tab === 'profile') return; 
     };
-
 
     return (
         <SafeAreaView style={styles.fullScreen}>
@@ -221,7 +222,7 @@ const HomeScreen: React.FC = () => {
                     <View style={[styles.componentContainer, { paddingHorizontal: 15 }]}>
                         <SearchBar
                             onSearch={handleSearch}
-                            placeholder="ลองค้นหาสินค้าที่นี่..."
+                            placeholder="ค้นหา ทุเรียน, มะม่วง..."
                         />
                     </View>
 
@@ -275,8 +276,9 @@ const HomeScreen: React.FC = () => {
                         keyExtractor={item => item.id}
 
                         renderItem={({ item }) => {
+                            // ✅ แก้ไข 2: ใช้ Logic จัดการรูปภาพแบบเดียวกับ homeBuyer
                             let imagePath = (item.image_url && item.image_url.length > 0) ? item.image_url[0] : null;
-                            const SERVER_URL = 'http://10.0.2.2:3000/uploads/';
+                            const SERVER_URL = 'http://10.0.2.2:3000/uploads/'; // Fallback สำหรับ Emulator
                             let fullImageUrl = 'https://via.placeholder.com/300';
 
                             if (imagePath) {
@@ -287,6 +289,7 @@ const HomeScreen: React.FC = () => {
                                     fullImageUrl = imagePath;
                                 } else {
                                     const path = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+                                    // เช็คว่า path มีคำว่า uploads/ หรือไม่ เพื่อเลือก Base URL ให้ถูก
                                     if (path.startsWith('uploads/')) {
                                         fullImageUrl = `${IMAGE_BASE_URL.replace(/\/$/, "")}/${path}`;
                                     } else {
@@ -295,7 +298,6 @@ const HomeScreen: React.FC = () => {
                                 }
                             }
 
-                            // ⭐️ 3. แสดงผลระยะทาง (ถ้ามี)
                             const distanceText = (item.distance !== undefined && item.distance !== null)
                                 ? `${item.distance.toFixed(1)} กม.` 
                                 : 'ไม่ระบุ';
@@ -306,7 +308,7 @@ const HomeScreen: React.FC = () => {
                                 price={item.price_per_unit}
                                 unit={item.unit}
                                 grade={item.grade || '-'}
-                                distance={distanceText} // ✅ ส่งค่าระยะทางไปแสดง
+                                distance={distanceText}
                                 imageUrl={fullImageUrl}
                                 onPress={() => handleProductPress(item.id)}
                             />
