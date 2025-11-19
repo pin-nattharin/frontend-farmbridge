@@ -16,7 +16,7 @@ const PaymentSuccessScreen = () => {
 
   const handleGoHome = () => {
     // 2. กลับไปหน้าหลัก (ล้าง Stack การจ่ายเงิน)
-    router.replace('/'); // (สมมติว่าหน้าหลักคือ Root ของ Tabs)
+    router.replace('/buyer/homeBuyer'); // (สมมติว่าหน้าหลักคือ Root ของ Tabs)
   };
 
   return (

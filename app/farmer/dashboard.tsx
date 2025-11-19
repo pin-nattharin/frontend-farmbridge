@@ -16,11 +16,8 @@ import FarmerNavbar from '../../components/ui/FarmerNavbar';
 import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
-import {
-  getFarmerDashboard,
-  getDashboardStats,
-  DashboardStatsResponse
-} from '../../services/dashboardService';
+import { getFarmerDashboard } from '../../services/dashboardService';
+import api from '../../services/api';
 
 const { width } = Dimensions.get('window');
 
@@ -38,7 +35,6 @@ const chartConfig = {
     paddingRight: 0,
     paddingLeft: 0,
   },
-  
 };
 
 const DashboardScreen = () => {
@@ -48,21 +44,17 @@ const DashboardScreen = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [globalStats, setGlobalStats] = useState<DashboardStatsResponse | null>(null);
 
-  // 1. State เก็บข้อมูล Metrics (ตัวเลขรายได้, ขายล่าสุด)
   const [metrics, setMetrics] = useState({
     totalRevenue: 0,
     increasePercent: 0,
-    latestSale: null as any,
+    salesHistory: [] as any[], // เก็บเป็น Array
   });
   
-  // 2. State เก็บข้อมูลกราฟ (แปลงมาจาก API)
   const [chartDataMap, setChartDataMap] = useState<any>({}); 
-  const [selectedChart, setSelectedChart] = useState('มะม่วง'); // Default
+  const [selectedChart, setSelectedChart] = useState('มะม่วง'); 
   const [isDropdownVisible, setDropdownVisible] = useState(false);
 
-  // รายการตัวเลือก (ตามรูป)
   const chartOptions = ['มะม่วง', 'ทุเรียน', 'มังคุด', 'องุ่น'];
 
   const fetchDashboardData = useCallback(
@@ -79,23 +71,35 @@ const DashboardScreen = () => {
       }
 
       try {
-        const [farmerDashboard, statsData] = await Promise.all([
-          getFarmerDashboard(),
-          getDashboardStats()
+        const [dashboardRes, historyRes] = await Promise.all([
+          getFarmerDashboard(), // สำหรับกราฟ
+          api.get('/orders/history/sales') // สำหรับคำนวณยอดขาย
         ]);
-        const { metrics, priceTrends } = farmerDashboard;
 
-        // 1. อัปเดต Metrics
+        const response = await getFarmerDashboard();
+        const { metrics: backendMetrics, priceTrends } = response;
+        const allSales = historyRes.data;
+
+        const totalRevenue = allSales.reduce((sum: number, order: any) => {
+            return sum + parseFloat(order.total_price || '0');
+        }, 0);
+
+        const formattedHistory = allSales.map((order: any) => ({
+            product_name: order.Listing?.product_name || 'สินค้า',
+            grade: order.Listing?.grade , 
+            quantity: parseFloat(order.quantity_ordered),
+            total_price: parseFloat(order.total_price),
+            date: order.created_at
+        }));
+
+
         setMetrics({
-          totalRevenue: metrics.totalRevenue || 0,
-          increasePercent: metrics.increasePercent || 0,
-          latestSale: metrics.latestSale,
+          totalRevenue: backendMetrics.totalRevenue || 0,
+          increasePercent: backendMetrics.increasePercent || 0,
+          salesHistory: (backendMetrics as any).salesHistory || [],
         });
 
-        // 2. แปลงข้อมูลกราฟ (จาก { date, price } -> { labels, datasets })
         const formattedCharts: any = {};
-        
-        // ข้อมูลสำรองเผื่อกราฟว่าง
         const defaultChart = {
           labels: ['-'],
           datasets: [{ data: [0] }]
@@ -103,10 +107,8 @@ const DashboardScreen = () => {
 
         Object.keys(priceTrends || {}).forEach(product => {
           const trends = (priceTrends[product] || []) as Array<{ date: string; price: number }>;
-          
           if (trends && trends.length > 0) {
             formattedCharts[product] = {
-              // แปลงวันที่เป็นชื่อเดือน เช่น "ม.ค.", "ก.พ."
               labels: trends.map((t: any) => {
                 const d = new Date(t.date);
                 return d.toLocaleDateString('th-TH', { month: 'short' });
@@ -119,7 +121,6 @@ const DashboardScreen = () => {
         });
 
         setChartDataMap(formattedCharts);
-        setGlobalStats(statsData);
 
       } catch (error) {
         console.error('Fetch Dashboard Error:', error);
@@ -134,48 +135,35 @@ const DashboardScreen = () => {
     [token]
   );
 
-  // เรียกใช้ตอนเปิดหน้าจอ
   useEffect(() => {
     if (authLoading) return;
     fetchDashboardData({ showScreenLoader: true });
   }, [authLoading, fetchDashboardData]);
 
-  // ฟังก์ชัน Pull-to-Refresh
   const onRefresh = () => {
     if (!token) return;
     setRefreshing(true);
     fetchDashboardData();
   };
 
-  // เลือกกราฟที่จะแสดง (ถ้าไม่มีข้อมูลให้ใช้ Default)
   const currentChartData = chartDataMap[selectedChart] || {
     labels: ['No Data'],
     datasets: [{ data: [0] }]
   };
 
-  // ฟังก์ชันเมื่อเลือกไอเท็ม
   const handleSelectOption = (option: string) => {
-    setSelectedChart(option); // 1. อัปเดตค่าที่เลือก
-    setDropdownVisible(false); // 2. ปิดเมนู
+    setSelectedChart(option); 
+    setDropdownVisible(false); 
   };
 
   const handleBack = () => {
         router.back();
     };
 
-  // --- 2. เพิ่มฟังก์ชันสำหรับ Navbar ---
-  const handleNavHome = () => {
-    router.push('/farmer/homeFarmer'); 
-  };
-  const handleNavChart = () => {
-    // อยู่หน้า Chart อยู่แล้ว ไม่ต้องทำอะไร
-  };
-  const handleNavAdd = () => {
-    router.push('/farmer/createPost'); 
-  };
-  const handleNavNotifications = () => {
-    router.push('/farmer/notification'); 
-  };
+  const handleNavHome = () => { router.push('/farmer/homeFarmer'); };
+  const handleNavChart = () => { };
+  const handleNavAdd = () => { router.push('/farmer/createPost'); };
+  const handleNavNotifications = () => { router.push('/farmer/notification'); };
 
   if (authLoading || (isLoading && !refreshing)) {
     return (
@@ -190,7 +178,6 @@ const DashboardScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
 
-      {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
       <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#0056b3" />
       </TouchableOpacity>
@@ -199,7 +186,6 @@ const DashboardScreen = () => {
         style={styles.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* --- Header --- */}
         <View style={styles.header}>
           <Text style={styles.title}>แดชบอร์ด</Text>
         </View>
@@ -220,29 +206,48 @@ const DashboardScreen = () => {
           </View>
 
           <View style={[styles.metricCard, styles.metricCardGreenBg]}>
-            <Text style={styles.metricLabel}>แสดงเป็นร้อยละ</Text>
-            <Text style={styles.metricValueGreen}>+{metrics.increasePercent}%</Text>
+            {/* 🟢 เปลี่ยน Label ให้ตรงกับ Logic Backend (เปรียบเทียบกับพ่อค้าคนกลาง) */}
+            <Text style={styles.metricLabel}>กำไรส่วนต่าง</Text>
+            <Text style={[styles.metricValueGreen, { color: metrics.increasePercent >= 0 ? '#28a745' : '#dc3545' }]}>
+                {metrics.increasePercent > 0 ? '+' : ''}{metrics.increasePercent}%
+            </Text>
+            <Text style={{fontSize: 10, color: '#666'}}>(เทียบราคาล้ง)</Text>
           </View>
         </View>
 
-         {/* --- Recent Sale Card --- */}
-        <View style={styles.recentSaleCard}>
-          <View style={styles.recentSaleHeader}>
-            <Text style={styles.recentSaleLabel}>ขายอะไรไปแล้วบ้าง</Text>
-            <Text style={styles.recentSaleAmount}>
-              {metrics.latestSale ? `จำนวน ${metrics.latestSale.quantity} กก.` : '-'}
-            </Text>
-          </View>
-          <Text style={styles.recentSaleItem}>
-            {metrics.latestSale 
-              ? `${metrics.latestSale.product_name} (เกรด ${metrics.latestSale.grade || '-'})`
-              : 'ยังไม่มีรายการขายสำเร็จ'}
-          </Text>
+         {/* --- ⭐️ ส่วนแก้ไข: แสดงรายการขายทั้งหมด (List) --- */}
+        <View style={styles.historySection}>
+          <Text style={styles.sectionTitle}>รายการขายทั้งหมด</Text>
+          
+          {metrics.salesHistory && metrics.salesHistory.length > 0 ? (
+              metrics.salesHistory.map((item, index) => (
+                <View key={index} style={styles.historyCard}>
+                    <View style={styles.historyHeader}>
+                        <Text style={styles.productName}>
+                            {item.product_name} <Text style={styles.gradeText}>({item.grade})</Text>
+                        </Text>
+                        <Text style={styles.saleDate}>
+                            {/* ตรวจสอบว่ามีวันที่หรือไม่ ถ้าไม่มีใช้วันนี้ */}
+                            {item.date ? new Date(item.date).toLocaleDateString('th-TH') : ''}
+                        </Text>
+                    </View>
+                    
+                    <View style={styles.historyDetails}>
+                        <Text style={styles.detailText}>จำนวน: {item.quantity} กก.</Text>
+                        {/* เช็คค่าก่อน toLocaleString เพื่อกัน Error */}
+                        <Text style={styles.priceText}>+{parseFloat(item.total_price || '0').toLocaleString()} บาท</Text>
+                    </View>
+                </View>
+              ))
+          ) : (
+              <View style={styles.emptyHistory}>
+                  <Text style={styles.emptyText}>ยังไม่มีรายการขาย</Text>
+              </View>
+          )}
         </View>
 
         {/* --- Chart Section --- */}
         <View style={styles.chartSection}>
-          {/* --- Dropdown --- */}
           <View style={styles.chartDropdownWrapper}>
             <TouchableOpacity
               style={styles.chartDropdownButton}
@@ -277,12 +282,11 @@ const DashboardScreen = () => {
             )}
           </View>
 
-          {/* --- LineChart --- */}
           <View style={styles.chartContainer}>
             {currentChartData.datasets[0].data.length > 0 && currentChartData.labels.length > 0 ? (
                <LineChart
                data={currentChartData}
-               width={width - 32} // เต็มจอ ลบ padding
+               width={width - 32} 
                height={220}
                chartConfig={chartConfig}
                bezier
@@ -297,9 +301,9 @@ const DashboardScreen = () => {
           </View>
 
         </View>
+        <View style={{ height: 80 }} />
       </ScrollView>
 
-      {/* --- Navbar --- */}
       <FarmerNavbar
         activeTab="chart"
         onHomePress={handleNavHome}
@@ -378,36 +382,73 @@ const styles = StyleSheet.create({
     color: '#28a745',
     marginTop: 8,
   },
-  recentSaleCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  
+  // --- ⭐️ Styles สำหรับ History List ---
+  historySection: {
+      marginTop: 20,
+      paddingHorizontal: 16,
   },
-  recentSaleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+  sectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: '#333',
+      marginBottom: 10,
   },
-  recentSaleLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+  historyCard: {
+      backgroundColor: 'white',
+      borderRadius: 12,
+      padding: 15,
+      marginBottom: 10,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 2,
   },
-  recentSaleAmount: {
-    fontSize: 16,
-    color: '#333',
+  historyHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 5,
   },
-  recentSaleItem: {
-    fontSize: 16,
-    color: '#555',
+  productName: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#0056b3',
   },
+  gradeText: {
+      fontSize: 14,
+      fontWeight: 'normal',
+      color: '#666',
+  },
+  saleDate: {
+      fontSize: 12,
+      color: '#888',
+  },
+  historyDetails: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+  },
+  detailText: {
+      fontSize: 14,
+      color: '#555',
+  },
+  priceText: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#28a745', // สีเขียวสำหรับยอดเงิน
+  },
+  emptyHistory: {
+      padding: 20,
+      alignItems: 'center',
+      backgroundColor: '#fff',
+      borderRadius: 12,
+  },
+  emptyText: {
+      color: '#999',
+  },
+
   errorBanner: {
     backgroundColor: '#fdecea',
     borderRadius: 10,

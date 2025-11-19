@@ -5,6 +5,8 @@ import ListingCard from '../../components/ui/ListingCard';
 import api from '../../services/api';
 import { Ionicons } from '@expo/vector-icons';
 
+// 🟢 กำหนด Base URL (Emulator ใช้ 10.0.2.2)
+const IMAGE_BASE_URL = 'http://10.0.2.2:3000'; 
 
 export default function HistorySaleScreen() {
   const [listings, setListings] = useState([]);
@@ -28,10 +30,9 @@ export default function HistorySaleScreen() {
       };
       
       fetchMyListings();
-    }, []) // Dependency array ของ useCallback
+    }, []) 
   );
 
-  //สร้างฟังก์ชันสำหรับปุ่มย้อนกลับ
   const handleBack = () => {
       router.back();
   };
@@ -45,15 +46,10 @@ export default function HistorySaleScreen() {
     );
   }
 
-  // (ในแอปจริง: ให้ใช้ useEffect fetch ข้อมูลจาก /api/listings)
-
   return (
     <>
-      <Stack.Screen options={{ title: '',
-        headerTransparent: true,
-      }} />
+      <Stack.Screen options={{ title: '', headerTransparent: true }} />
 
-      {/* 🟢 3. เพิ่มปุ่มย้อนกลับและ Text Header เอง */}
       <TouchableOpacity onPress={handleBack} style={styles.backButton}>
         <Ionicons name="arrow-back" size={24} color="#074E9F" /> 
       </TouchableOpacity>
@@ -64,22 +60,47 @@ export default function HistorySaleScreen() {
         ListHeaderComponent={() => (
           <Text style={styles.sectionTitle}>ประวัติการโพสต์ขาย</Text>
         )}
-        // 🟢 8. (ตัวเลือก) UI ตอนไม่มีข้อมูล
         ListEmptyComponent={() => (
             <View style={styles.center}>
                 <Text style={styles.emptyText}>คุณยังไม่มีรายการที่โพสต์ขาย</Text>
             </View>
         )}
-        renderItem={({ item }) => (
-          <ListingCard
-            productName={item.product_name}
-            quantity={item.quantity_total}
-            unit={item.unit}
-            price={item.price_per_unit}
-            locationText={item.seller?.address || 'ไม่ระบุที่อยู่'}
-            imageUrl={item.image_url && item.image_url.length > 0 ? item.image_url[0] : null} 
-          />
-        )}
+        renderItem={({ item }) => {
+            // 🟢 Logic จัดการรูปภาพ
+            let imagePath = (item.image_url && item.image_url.length > 0) ? item.image_url[0] : null;
+            let fullImageUrl = 'https://via.placeholder.com/300?text=No+Image'; 
+
+            if (imagePath) {
+                // ลบเครื่องหมายคำพูดและ Backslash
+                imagePath = imagePath.replace(/['"]+/g, '').replace(/\\/g, '/');
+
+                if (imagePath.startsWith('content://') || imagePath.startsWith('file://')) {
+                    fullImageUrl = imagePath;
+                } else if (imagePath.startsWith('http')) {
+                    fullImageUrl = imagePath;
+                } else {
+                    // ถ้าเป็น path บน server
+                    const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+                    // เช็คว่ามี uploads/ หรือยัง
+                    if (cleanPath.startsWith('uploads/')) {
+                        fullImageUrl = `${IMAGE_BASE_URL}/${cleanPath}`;
+                    } else {
+                        fullImageUrl = `${IMAGE_BASE_URL}/uploads/${cleanPath}`; 
+                    }
+                }
+            }
+
+            return (
+              <ListingCard
+                productName={item.product_name}
+                quantity={item.quantity_total}
+                unit={item.unit}
+                price={item.price_per_unit}
+                locationText={item.seller?.address || 'ไม่ระบุที่อยู่'}
+                imageUrl={fullImageUrl} // 🟢 ส่ง URL ที่ถูกต้องไปแสดง
+              />
+            );
+        }}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContainer}
       />
@@ -105,11 +126,11 @@ const styles = StyleSheet.create({
   },
   headerTitleContainer: {
       position: 'absolute',
-      top: 150, // ปรับตำแหน่งให้เหมาะสม
+      top: 150, 
       width: '100%',
       alignItems: 'center',
       alignSelf: 'center',
-      zIndex: 5, // ให้ Header อยู่ด้านบนกว่า List
+      zIndex: 5, 
   },
   headerTitle: {
       fontSize: 32, 

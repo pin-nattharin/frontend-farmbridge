@@ -11,6 +11,8 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Image,
+  Dimensions,
 } from 'react-native';
 // 🟢 2. เพิ่ม Import ไอคอน
 import { MaterialIcons } from '@expo/vector-icons'; 
@@ -22,6 +24,8 @@ import CustomDropdown from '../../components/ui/Dropdown';
 import RoundedInput from '../../components/ui/RoundedInput';
 import CustomModal from '../../components/ui/Modal';
 import api from '../../services/api';
+
+const { width } = Dimensions.get('window');
 
 // (Data ทั้งหมดเหมือนเดิม)
 const allGradesData = {
@@ -46,12 +50,13 @@ const allGradesData = {
     { label: 'ต่ำกว่าเกรด C (ช้ำ บิดเบี้ยว)', value: 'เกรดต่ำกว่า C-' },
   ],
 };
-const priceSuggestionData = {
-  durian: '100-120',
-  mango: '14-17', // (อ้างอิงจากรูป UI ของคุณ)
-  mangosteen: '35-45',
-  grape: '80-90',
+const marketPriceData: { [key: string]: string } = {
+  'มะม่วง': '10-25',
+  'ทุเรียน': '120-160',
+  'มังคุด': '25-45',
+  'องุ่น': '30-60',
 };
+
 const productLabels = {
   durian: 'ทุเรียน',
   mango: 'มะม่วง',
@@ -89,12 +94,14 @@ export default function CreatePostScreen() {
     if (product_name) {
       const newGrades = allGradesData[product_name as keyof typeof allGradesData] || [];
       setGradeItems(newGrades);
-      const price = priceSuggestionData[product_name as keyof typeof priceSuggestionData];
+      const price = marketPriceData[product_name];
+      
       const label = productLabels[product_name as keyof typeof productLabels];
-      if (price && label) {
-        setModalProduct(label);
+      if (price) {
+        setModalProduct(product_name);
         setModalPrice(price);
-        setModalVisible(true); 
+        // แสดง Modal ทันทีเมื่อเลือกสินค้า
+        setModalVisible(true);
       }
     } else {
       setGradeItems([]);
@@ -142,33 +149,50 @@ export default function CreatePostScreen() {
 
     
 
-    // 🟢 4. (แก้ไข) เปลี่ยน .now() เป็น .name
-    const simulated_image_url = image_url.map(file => {
-        return `https://example.com/${file.name}`;
-});
-    // (postData และ ยิง API - เหมือนเดิม)
-    const postData = {
-      product_name: product_name,
-      grade: grade,
-      quantity_total: parseFloat(quantity_total),
-      price_per_unit: parseFloat(price_per_unit),
-      pickup_date: pickup_date.toISOString(),
-      description: description,
-      image_urls: simulated_image_url, 
-      unit: 'กก.',
-    };
     try {
-      await api.post('/listings', postData); 
+      // ⭐️ 1. สร้าง FormData Object
+      const formData = new FormData();
+
+      // ⭐️ 2. ใส่ข้อมูล Text
+      formData.append('product_name', product_name!);
+      formData.append('grade', grade!);
+      formData.append('quantity_total', quantity_total);
+      formData.append('price_per_unit', price_per_unit);
+      formData.append('pickup_date', pickup_date.toISOString());
+      formData.append('description', description);
+      formData.append('unit', 'กก.');
+
+      // ⭐️ 3. ใส่ไฟล์รูปภาพ (สำคัญมากต้องมี uri, name, type)
+      if (image_url) {
+        image_url.forEach((file, index) => {
+            // ตรวจสอบว่า file มี mimeType หรือไม่ ถ้าไม่มีให้เดาเอา
+            const fileType = file.mimeType || 'image/jpeg';
+            const fileName = file.name || `photo_${index}.jpg`;
+
+            // Append ไฟล์ลงไปในชื่อ 'images' (ต้องตรงกับ backend upload.array('images'))
+            formData.append('images', {
+                uri: file.uri,
+                name: fileName,
+                type: fileType,
+            } as any); // ต้อง cast as any เพื่อหลบ TypeScript error ใน RN
+        });
+      }
+
+      // ⭐️ 4. ส่ง request โดยกำหนด Header เป็น multipart/form-data
+      await api.post('/listings', formData, {
+          headers: {
+              'Content-Type': 'multipart/form-data',
+          },
+      });
+
       setIsLoading(false);
       Alert.alert('โพสต์สำเร็จ!', 'ข้อมูลประกาศของคุณถูกบันทึกแล้ว');
-      router.back(); 
+      router.back();
+
     } catch (err: any) {
       setIsLoading(false);
       console.error('Post failed:', err.response?.data || err.message);
-      Alert.alert(
-        'โพสต์ไม่สำเร็จ',
-        err.response?.data?.message || 'เกิดข้อผิดพลาด'
-      );
+      Alert.alert('โพสต์ไม่สำเร็จ', err.response?.data?.message || 'เกิดข้อผิดพลาด');
     }
   }, [
     // (Dependencies - ใช้ image_url ถูกต้อง)
@@ -212,15 +236,14 @@ export default function CreatePostScreen() {
             style={styles.uploadBox} 
             onPress={pickImage}
           >
-            {image_url && image_url.length > 0 ? ( // 👈 แก้ไข
-              <>
-                <Text style={styles.fileNameText} numberOfLines={2}>
-                  เลือกแล้ว: {image_url.length} รูป {/* 👈 แก้ไข */}
+            {image_url && image_url.length > 0 ? (
+              <View style={{ alignItems: 'center' }}>
+                <MaterialIcons name="check-circle" size={40} color="#28a745" />
+                <Text style={styles.fileNameText} numberOfLines={1}>
+                  {image_url.length} รูปที่เลือก
                 </Text>
-                <Text style={styles.uploadText}>
-                  (คลิกเพื่อเปลี่ยนไฟล์)
-                </Text>
-              </>
+                <Text style={styles.uploadText}>(คลิกเพื่อเปลี่ยน)</Text>
+              </View>
             ) : (
               <>
                 <MaterialIcons name="cloud-upload" size={36} color="#A0AEC0" />
@@ -359,6 +382,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  previewImage: {
+    width: 150,
+    height: 100,
+    borderRadius: 8,
+    marginBottom: 8,
   },
   uploadText: {
     fontSize: 14,

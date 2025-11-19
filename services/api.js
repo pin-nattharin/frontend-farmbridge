@@ -1,5 +1,5 @@
 import axios from 'axios';
-//import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // !!! เปลี่ยน IP และ Port ให้ตรงกับเครื่องคุณ !!!
 //const API_BASE_URL = 'http://192.168.0.102:3000'; // <-- ตัวอย่างสำหรับมือถือจริง
@@ -13,6 +13,18 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// เพิ่ม token ทุกครั้งที่เรียก API
+api.interceptors.request.use(
+  async (config) => {
+    const token = await AsyncStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 export const setAuthToken = (token) => {
     if (token) {

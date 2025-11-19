@@ -116,10 +116,17 @@ useEffect(() => {
         unit: 'กก.', 
       });
 
-      Alert.alert('ส่งสำเร็จ', 'คำขอของคุณถูกบันทึกแล้ว');
-      router.back();
+      Alert.alert('ส่งสำเร็จ', 'คำขอของคุณถูกบันทึกแล้ว', [
+        { 
+          text: 'ตกลง', 
+          onPress: () => {
+            // ใช้ replace เพื่อไม่ให้ย้อนกลับมาหน้าฟอร์มได้
+            router.replace('/buyer/homeBuyer'); 
+          }
+        }
+      ]);
 
-      } catch (error: any) { 
+    } catch (error: any) { 
       console.error('Create Demand Failed:', error);
       Alert.alert(
         'เกิดข้อผิดพลาด', 
@@ -174,6 +181,17 @@ useEffect(() => {
             onChangeText={setQuantity_Total}
             keyboardType="numeric"
             editable={!isSubmitting} // --- [NEW] ---
+          />
+
+          {/* --- 🟢 3. เพิ่ม: ราคาเสนอซื้อ (TextInput) --- */}
+          <Text style={styles.label}>เสนอราคา (บาท/กก.)</Text>
+          <TextInput
+            style={styles.inputBox}
+            placeholder="ระบุราคาที่ต้องการ"
+            value={price_per_unit}
+            onChangeText={setPrice_Per_Unit}
+            keyboardType="numeric"
+            editable={!isSubmitting}
           />
 
           {/* --- 4. ปุ่ม --- */}

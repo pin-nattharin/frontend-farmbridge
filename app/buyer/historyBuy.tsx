@@ -61,11 +61,27 @@ const BuyHistoryCard: React.FC<BuyHistoryCardProps> = ({ item, onPress }) => {
     const unit = listing?.unit || 'หน่วย'; // ถ้าใน listing มี unit ให้ดึงมาใช้ (ถ้า API ส่งมา)
     
     // จัดการรูปภาพ
-    let imageUrl = 'https://via.placeholder.com/150';
+    let imageUrl = 'https://via.placeholder.com/150?text=No+Image';
+    
     if (listing?.image_url && listing.image_url.length > 0) {
-        const path = listing.image_url[0];
-        if (path.startsWith('http')) imageUrl = path;
-        else imageUrl = `${IMAGE_BASE_URL}${path}`;
+        let imagePath = listing.image_url[0];
+        
+        // ลบเครื่องหมายคำพูดและ Backslash ออก
+        imagePath = imagePath.replace(/['"]+/g, '').replace(/\\/g, '/');
+
+        if (imagePath.startsWith('content://') || imagePath.startsWith('file://')) {
+            imageUrl = imagePath;
+        } else if (imagePath.startsWith('http')) {
+            imageUrl = imagePath;
+        } else {
+            // ถ้าเป็น path บน server
+            const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+            if (cleanPath.startsWith('uploads/')) {
+                imageUrl = `${IMAGE_BASE_URL}/${cleanPath}`;
+            } else {
+                imageUrl = `${IMAGE_BASE_URL}/uploads/${cleanPath}`;
+            }
+        }
     }
 
     const handleCall = () => {

@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, FlatList } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
 import SearchBar from '../../components/ui/SearchBar'; 
 import MarketingBanner from '../../components/ui/MarketingBanner'; 
 import CustomDropdown from '../../components/ui/Dropdown'; 
 import ProductCard from '../../components/ui/ProductCard'; 
-import FarmerNavbar from '../../components/ui/FarmerNavbar'; // แก้ Import เป็น BuyerNavbar
+import FarmerNavbar from '../../components/ui/FarmerNavbar'; 
 import api from '../../services/api';
+import { useAuth } from '../context/AuthContext';
 
 // Interface สำหรับข้อมูลสินค้า
 interface Listing {
@@ -22,12 +23,15 @@ interface Listing {
         fullname: string;
         address: string;
     };
-    distance_km: number | null;
+    distance: number | null;
+    // ⭐️ รองรับพิกัดจาก Backend
+    location_geom?: {
+        type: string;
+        coordinates: number[]; // [lng, lat]
+    };
 }
 
-// ----------------------------------------------------
-// ข้อมูลจำลอง (DUMMY DATA) 
-// ----------------------------------------------------
+// Dropdown Data
 const typeItems = [
     { label: 'ทุกประเภท', value: 'all' },
     { label: 'ทุเรียน', value: 'ทุเรียน' },
@@ -46,10 +50,22 @@ const areaItems = [
 
 const priceItems = [
     { label: 'ราคา', value: 'all' },
-    { label: 'ต่ำ-สูง', value: 'ต่ำ-สูง' },
-    { label: 'สูง-ต่ำ', value: 'สูง-ต่ำ' },
+    { label: 'ต่ำ-สูง', value: 'price_asc' },
+    { label: 'สูง-ต่ำ', value: 'price_desc' },
 ];
 
+// ⭐️ 1. ฟังก์ชันคำนวณระยะทาง (Haversine)
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371; // รัศมีโลก (km)
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
 
 // ----------------------------------------------------
 // HOMESCREEN COMPONENT
@@ -58,13 +74,18 @@ const priceItems = [
 const HomeScreen: React.FC = () => {
 
     const router = useRouter();
+    const { user, token, logout } = useAuth();
+    const userLocation = user?.coordinates 
+        ? { lat: user.coordinates.lat, lng: user.coordinates.lng }
+        : { lat: 18.7883, lng: 98.9853 };
 
     const [activeTab, setActiveTab] = useState<'home' | 'chart' | 'add' | 'notifications' | 'profile'>('home');
 
-    // --- State สำหรับข้อมูลจริง ---
     const [listings, setListings] = useState<Listing[]>([]); 
     const [isFetching, setIsFetching] = useState(true);
-    const IMAGE_BASE_URL = 'http://10.0.2.2:3000';
+    const IMAGE_BASE_URL = 'http://192.168.0.102:3000'
+
+    //const userLocation = { lat: 13.7563, lng: 100.5018 }; 
 
     // Dropdown States
     const [typeOpen, setTypeOpen] = useState(false);
@@ -81,7 +102,6 @@ const HomeScreen: React.FC = () => {
 
     const [distanceOpen, setDistanceOpen] = useState(false); 
 
-    // --- ฟังก์ชันดึงข้อมูล (เหมือน index.tsx) ---
     const formatListingsResponse = (payload: any): Listing[] => {
         if (Array.isArray(payload)) return payload;
         if (payload?.items && Array.isArray(payload.items)) return payload.items;
@@ -97,25 +117,33 @@ const HomeScreen: React.FC = () => {
             data: error?.response?.data,
             message: error?.message
         });
-        Alert.alert('ผิดพลาด', fallbackMessage);
     };
 
     const fetchListings = useCallback(async () => {
         setIsFetching(true);
         try {
-            const params: { product_name?: string; status?: string } = {
-                status: 'available'
-            };
-
+            const params: { product_name?: string; status?: string } = { status: 'available' };
+            
             if (typeValue && typeValue !== 'all') {
                 params.product_name = typeValue;
             }
+
             const response = await api.get('/listings', { params });
             let data: Listing[] = formatListingsResponse(response.data);
 
+            // ⭐️ 2. คำนวณระยะทางให้แต่ละสินค้า
+            data = data.map(item => {
+                if (item.location_geom && item.location_geom.coordinates) {
+                    const [lon, lat] = item.location_geom.coordinates;
+                    const dist = calculateDistance(userLocation.lat, userLocation.lng, lat, lon);
+                    return { ...item, distance: dist };
+                }
+                return { ...item, distance: null };
+            });
+
             if (areaValue && areaValue !== 'all') {
                 const maxDistance = parseInt(areaValue, 10);
-                data = data.filter(item => item.distance_km !== null && item.distance_km <= maxDistance);
+                data = data.filter(item => item.distance !== null && item.distance <= maxDistance);
             }
 
             if (priceValue && priceValue !== 'all') {
@@ -126,6 +154,7 @@ const HomeScreen: React.FC = () => {
                 }
             }
             setListings(data);
+            
         } catch (error: any) {
             handleFetchError(error);
         } finally {
@@ -145,7 +174,6 @@ const HomeScreen: React.FC = () => {
         router.push('/farmer/RegisterSellerScreen'); 
     };
 
-    // --- 1. แก้ไขฟังก์ชันนี้ ---
     const handleProductPress = (productId: string) => {
         router.push({
             pathname: '/productDetail', 
@@ -157,36 +185,28 @@ const HomeScreen: React.FC = () => {
         setAreaOpen(false); setPriceOpen(false); setDistanceOpen(false);
         setTypeOpen(true);
     };
-
     const onOpenArea = () => {
         setTypeOpen(false); setPriceOpen(false); setDistanceOpen(false);
         setAreaOpen(true);
     };
-
     const onOpenPrice = () => {
         setTypeOpen(false); setAreaOpen(false); setDistanceOpen(false);
         setPriceOpen(true);
     };
     
-    // *** ฟังก์ชันสำหรับ Navbar ***
     const handleNavPress = (tab: 'home' | 'chart' | 'add' | 'notifications' | 'profile') => {
         setActiveTab(tab);
-        if (tab === 'home') {
-            return;
-        } else if (tab === 'chart') {
-            router.push('/farmer/dashboard');
-        } else if (tab === 'add') {
-            router.push('/farmer/createPost');
-        } else if (tab === 'notifications') {
-            router.push('/farmer/notification');
-        } else if (tab === 'profile') {
-            return;
-        }
+        if (tab === 'home') return;
+        else if (tab === 'chart') router.push('/farmer/dashboard');
+        else if (tab === 'add') router.push('/farmer/createPost');
+        else if (tab === 'notifications') router.push('/farmer/notification');
+        else if (tab === 'profile') return;
     };
 
 
     return (
         <SafeAreaView style={styles.fullScreen}>
+            <Stack.Screen options={{ headerShown: false }} />
             <View style={styles.contentWrapper}> 
                 
                 <ScrollView
@@ -198,7 +218,6 @@ const HomeScreen: React.FC = () => {
                     }}
                 >
 
-                    {/* --- 1. Search Bar Component --- */}
                     <View style={[styles.componentContainer, { paddingHorizontal: 15 }]}>
                         <SearchBar
                             onSearch={handleSearch}
@@ -206,7 +225,6 @@ const HomeScreen: React.FC = () => {
                         />
                     </View>
 
-                    {/* --- 2. Marketing Banner Component --- */}
                     <View style={styles.componentContainer}>
                         <MarketingBanner
                             onPress={handleBannerPress}
@@ -214,9 +232,7 @@ const HomeScreen: React.FC = () => {
                         />
                     </View>
 
-                    {/* --- 3. Filter/Dropdown Row --- */}
                     <View style={styles.filterContainer}>
-                        {/* Dropdown 1: ประเภท - zIndex สูงสุด */}
                         <CustomDropdown
                             containerStyle={[styles.dropdownWrapper, { zIndex: 4000 }]}
                             placeholder="ประเภท"
@@ -228,8 +244,6 @@ const HomeScreen: React.FC = () => {
                             setItems={setTypeItemsState}
                             onOpen={onOpenType}
                         />
-
-                        {/* Dropdown 2: พื้นที่ - zIndex รองลงมา */}
                         <CustomDropdown
                             containerStyle={[styles.dropdownWrapper, { zIndex: 3000 }]}
                             placeholder="พื้นที่"
@@ -241,8 +255,6 @@ const HomeScreen: React.FC = () => {
                             setItems={setAreaItemsState}
                             onOpen={onOpenArea}
                         />
-
-                        {/* Dropdown 3: ราคา/ปริมาณ - zIndex ต่ำกว่า */}
                         <CustomDropdown
                             containerStyle={[styles.dropdownWrapper, { zIndex: 2000 }]}
                             placeholder="ราคา"
@@ -256,37 +268,60 @@ const HomeScreen: React.FC = () => {
                         />
                     </View>
 
-                    {/* --- 4. Product List Header --- */}
                     <Text style={styles.listHeader}>รายการแนะนำ</Text>
 
-                    {/* --- 5. Product List Grid --- */}
                     <FlatList
                         data={listings}
                         keyExtractor={item => item.id}
-                        renderItem={({ item }) => {
 
-                            const imagePath = item.image_url ? item.image_url[0] : null;
-                            const fullImageUrl = imagePath ? `${IMAGE_BASE_URL}${imagePath}` : 'https://via.placeholder.com/300';
+                        renderItem={({ item }) => {
+                            let imagePath = (item.image_url && item.image_url.length > 0) ? item.image_url[0] : null;
+                            const SERVER_URL = 'http://10.0.2.2:3000/uploads/';
+                            let fullImageUrl = 'https://via.placeholder.com/300';
+
+                            if (imagePath) {
+                                imagePath = imagePath.replace(/['"]+/g, '').replace(/\\/g, '/');
+                                if (imagePath.startsWith('content://') || imagePath.startsWith('file://')) {
+                                    fullImageUrl = imagePath;
+                                } else if (imagePath.startsWith('http')) {
+                                    fullImageUrl = imagePath;
+                                } else {
+                                    const path = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+                                    if (path.startsWith('uploads/')) {
+                                        fullImageUrl = `${IMAGE_BASE_URL.replace(/\/$/, "")}/${path}`;
+                                    } else {
+                                        fullImageUrl = `${SERVER_URL}${path}`;
+                                    }
+                                }
+                            }
+
+                            // ⭐️ 3. แสดงผลระยะทาง (ถ้ามี)
+                            const distanceText = (item.distance !== undefined && item.distance !== null)
+                                ? `${item.distance.toFixed(1)} กม.` 
+                                : 'ไม่ระบุ';
+                            
                             return (
                             <ProductCard
                                 productName={item.product_name}
                                 price={item.price_per_unit}
                                 unit={item.unit}
-                                grade={item.grade}
-                                distance={typeof item.distance_km === 'number' ? `${item.distance_km.toFixed(1)} กม.` : 'ไม่ระบุ'}
-                                    imageUrl={fullImageUrl}
-                                    onPress={() => handleProductPress(item.id)}
+                                grade={item.grade || '-'}
+                                distance={distanceText} // ✅ ส่งค่าระยะทางไปแสดง
+                                imageUrl={fullImageUrl}
+                                onPress={() => handleProductPress(item.id)}
                             />
                             );
                         }}
                         numColumns={2} 
                         contentContainerStyle={styles.productList}
-                        scrollEnabled={false} 
+                        scrollEnabled={false}
+                        ListEmptyComponent={() => (
+                             <Text style={{textAlign: 'center', marginTop: 20, color: '#999'}}>ไม่พบสินค้า</Text>
+                        )} 
                     />
 
                 </ScrollView>
                 
-                {/* --- 6. Bottom Navbar Component (เรียกใช้ FarmerNavbar) --- */}
                 <FarmerNavbar
                     onHomePress={() => handleNavPress('home')}
                     onChartPress={() => handleNavPress('chart')} 
@@ -301,8 +336,7 @@ const HomeScreen: React.FC = () => {
     );
 };
 
-// ----------------------------------------------------
-// Styles (คงเดิม)
+// Styles
 const styles = StyleSheet.create({
     fullScreen: {
         flex: 1,
@@ -326,21 +360,6 @@ const styles = StyleSheet.create({
     componentContainer: {
         marginBottom: 15,
     },
-    componentHeader: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#38A169',
-        marginBottom: 10,
-        paddingHorizontal: 15,
-    },
-    note: {
-        fontSize: 12,
-        color: '#A0AEC0',
-        marginTop: 5,
-        paddingHorizontal: 20,
-    },
-    
-    // --- Styles for Filter ---
     filterContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -361,8 +380,8 @@ const styles = StyleSheet.create({
         marginTop: 5,
     },
     productList: {
-        paddingHorizontal: 30, 
-        justifyContent: 'space-between', 
+        paddingHorizontal: 20, 
+        justifyContent: 'center', 
     },
 });
 

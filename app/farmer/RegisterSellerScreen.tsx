@@ -1,5 +1,3 @@
-// 🟢 แก้ไขไฟล์: RegisterSellerScreen.tsx
-
 import React, { useState } from 'react';
 import { 
   View, Text, StyleSheet, ScrollView, Platform, 
@@ -10,6 +8,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as DocumentPicker from 'expo-document-picker'; 
 import { useRouter } from 'expo-router'; 
+import { Ionicons } from '@expo/vector-icons';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้อง ***
 import RoundedInput from '../../components/ui/RoundedInput'; 
@@ -105,6 +104,14 @@ export const registerBaseStyles = StyleSheet.create({
         fontSize: 14,
         color: '#718096', 
     },
+    backButton: {
+        position: 'absolute',
+        top: 50, 
+        left: 20,
+        zIndex: 10, 
+        padding: 5,
+    },
+    
 });
 
 
@@ -119,7 +126,11 @@ const RegisterSellerScreen: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [address, setAddress] = useState('');
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
-  const [isLoading, setIsLoading] = useState(false); // (State กันการกดปุ่มซ้ำ)
+  const [isLoading, setIsLoading] = useState(false); 
+  
+  const handleBack = () => {
+      router.back();
+  };
 
   
   // 🟢 4. แก้ไขฟังก์ชัน handleRegister (ส่วนนี้คือหัวใจหลัก)
@@ -222,6 +233,10 @@ const RegisterSellerScreen: React.FC = () => {
         end={{ x: 1, y: 1 }}
       />
 
+      <TouchableOpacity onPress={handleBack} style={registerBaseStyles.backButton}>
+          <Ionicons name="arrow-back" size={25} color="black" />
+      </TouchableOpacity>
+
       <ScrollView contentContainerStyle={registerBaseStyles.scrollContainer}>
         <View style={registerBaseStyles.card}>
           <Text style={registerBaseStyles.header}>สมัครสมาชิก</Text>
@@ -235,7 +250,7 @@ const RegisterSellerScreen: React.FC = () => {
           />
           <RoundedInput 
             label="อีเมล" 
-            placeholder="example@mail.com" 
+            placeholder="exampl@email.com" 
             keyboardType="email-address"
             autoCapitalize="none" // 🟢 (แนะนำ) ปิดตัวพิมพ์ใหญ่ช่องอีเมล
             value={email}

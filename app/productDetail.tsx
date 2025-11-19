@@ -9,10 +9,6 @@ import api from '../services/api';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้องตามโครงสร้างโปรเจกต์ของคุณ ***
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// ----------------------------------------------------
-// DUMMY DATA และ Constants
-// ----------------------------------------------------
 const { width } = Dimensions.get('window');
 const IMAGE_HEIGHT = width * 0.9;
 const IMAGE_BASE_URL = 'http://10.0.2.2:3000';
@@ -31,20 +27,10 @@ interface ListingDetail {
         fullname: string;
         phone: string;
         address: string;
+        profile_image?: string;
     };
 }
 
-
-// Data Structure สำหรับ react-native-chart-kit
-const priceGraphData = {
-    labels: ["ม.ค.", "มี.ค.", "พ.ค.", "ก.ค.", "ก.ย.", "พ.ย."],
-    datasets: [
-        {
-            data: [25, 27, 30, 28, 26, 30], // ข้อมูลราคาจำลอง
-            color: (opacity = 1) => `rgba(0, 86, 179, ${opacity})`, // สีน้ำเงิน
-        }
-    ]
-};
 
 // Config สำหรับ LineChart
 const chartConfig = {
@@ -90,6 +76,14 @@ const getTimeAgo = (dateString: string) => {
     return `โพสต์เมื่อ ${Math.floor(diffInHours / 24)} วันที่แล้ว`;
 };
 
+const getInitials = (fullname: string): string => {
+  if (!fullname) return '';
+  const names = fullname.split(' ');
+  const firstNameInitial = names[0] ? names[0][0] : '';
+  const lastNameInitial = names[1] ? names[1][0] : '';
+  return `${firstNameInitial}${lastNameInitial}`;
+};
+
 export default function ProductDetailScreen() {
     const router = useRouter();
     
@@ -100,6 +94,9 @@ export default function ProductDetailScreen() {
 
     const [listing, setListing] = useState<ListingDetail | null>(null);
     const [loading, setLoading] = useState(true);
+    const [graphData, setGraphData] = useState<any>(null);
+
+    const IMAGE_BASE_URL = 'http://10.0.2.2:3000';
 
     // [ทดสอบ] แสดง ID ที่ได้รับใน console
     console.log("Received Product ID:", id);
@@ -110,7 +107,56 @@ export default function ProductDetailScreen() {
                 setLoading(true);
                 // เรียก API /listings/:id (ตรงกับ listing.routes.js)
                 const response = await api.get(`/listings/${id}`);
-                setListing(response.data);
+                const currentItem = response.data;
+                setListing(currentItem);
+                if (currentItem?.product_name) {
+                    try {
+                        const marketResponse = await api.get('/listings', {
+                            params: { product_name: currentItem.product_name }
+                        });
+
+                        // จัดการ Format ข้อมูล (เผื่อ API ส่งมาเป็น { items: [] } หรือ [])
+                        let marketList = [];
+                        if (Array.isArray(marketResponse.data)) marketList = marketResponse.data;
+                        else if (marketResponse.data?.items) marketList = marketResponse.data.items;
+
+                        // แปลงข้อมูลเป็นกราฟ
+                        if (marketList.length > 0) {
+                            // เรียงตามวันที่สร้าง (เก่า -> ใหม่)
+                            const sortedList = marketList.sort((a:any, b:any) => 
+                                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                            );
+
+                            // ตัดมาแค่ 6 รายการล่าสุด
+                            const recentList = sortedList.slice(-6);
+
+                            const labels = recentList.map((item:any) => {
+                                const d = new Date(item.created_at);
+                                return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+                            });
+
+                            const prices = recentList.map((item:any) => parseFloat(item.price_per_unit));
+
+                            // ถ้ามีข้อมูลจุดเดียว ให้เพิ่มจุดหลอกเพื่อให้กราฟลากเส้นได้สวยงาม
+                            if (prices.length === 1) {
+                                labels.unshift('ก่อนหน้า');
+                                prices.unshift(prices[0]); 
+                            }
+
+                            setGraphData({
+                                labels: labels,
+                                datasets: [{
+                                    data: prices,
+                                    color: (opacity = 1) => `rgba(0, 86, 179, ${opacity})`,
+                                }]
+                            });
+                        }
+                        } catch (err) {
+                        console.log("Market price fetch error:", err);
+                        // ถ้าดึงไม่ได้ ให้ใช้ข้อมูลปัจจุบันสร้างกราฟเส้นตรง
+                        setGraphData(null);
+                    }
+                }
             } catch (error) {
                 console.error("Fetch Error:", error);
                 Alert.alert("ผิดพลาด", "ไม่สามารถโหลดข้อมูลสินค้าได้");
@@ -124,6 +170,30 @@ export default function ProductDetailScreen() {
             fetchProductDetail();
         }
     }, [id]);
+    
+    const getFullImageUrl = (imagePath: string | undefined | null) => {
+    if (!imagePath) return 'https://via.placeholder.com/600?text=No+Image';
+
+    let cleanPath = imagePath.replace(/['"]+/g, '').replace(/\\/g, '/');
+
+    if (cleanPath.startsWith('content://') || cleanPath.startsWith('file://')) {
+        return cleanPath;
+    } else if (cleanPath.startsWith('http')) {
+        return cleanPath;
+    } else {
+        // ถ้า path เริ่มด้วย / ให้เอาออก
+        cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+        
+        // เช็คว่ามี uploads/ แล้วหรือยัง
+        if (!cleanPath.startsWith('uploads/')) {
+            cleanPath = `uploads/${cleanPath}`;
+        }
+        return `${IMAGE_BASE_URL}/${cleanPath}`;
+    }
+};
+
+    // เรียกใช้ฟังก์ชันเพื่อดึง URL รูปภาพที่ถูกต้อง
+    const listingImageUrl = getFullImageUrl(listing?.image_url?.[0]);
 
     const handleBuy = async () => {
         if (!listing) return;
@@ -152,8 +222,13 @@ export default function ProductDetailScreen() {
         const imagePath = listing.image_url?.[0];
         let fullImageUrl = '';
         if (imagePath) {
-            if (imagePath.startsWith('http')) fullImageUrl = imagePath;
-            else fullImageUrl = `${IMAGE_BASE_URL}${imagePath}`;
+            // แก้ไข path Windows (\) เป็น (/)
+            const cleanPath = imagePath.replace(/\\/g, '/');
+            if (cleanPath.startsWith('http')) fullImageUrl = cleanPath;
+            else {
+                 const path = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+                 fullImageUrl = `${IMAGE_BASE_URL}${path}`;
+            }
         }
 
         // ส่งข้อมูลไปหน้า Payment
@@ -165,26 +240,17 @@ export default function ProductDetailScreen() {
                 price_per_unit: listing.price_per_unit,
                 unit: listing.unit,
                 seller_location: listing.seller?.address || 'ไม่ระบุ',
-                image_url: fullImageUrl,
+                image_url: listingImageUrl,
                 pickup_date: listing.pickup_date // ส่งวันที่นัดรับไปด้วย
             }
         });
     };
 
-    /* const handleNavPress = (tab: ActiveTab) => {
-        setActiveTab(tab);
-        if (tab === 'home') {
-            router.replace('/buyer/homeBuyer');
-        } else if (tab === 'add') {
-            router.push('/buyer/createDemand');
-        } else if (tab === 'list') {
-            router.replace('/buyer/historyDemand');
-        } else if (tab === 'notify') {
-            router.replace('/buyer/notificationDemand');
-        } else if (tab === 'profile') {
-            return;
-        }
-    }; */
+    const currentPrice = listing ? parseFloat(listing.price_per_unit) : 0;
+    const defaultGraphData = {
+        labels: ["ตลาด", "ปัจจุบัน"],
+        datasets: [{ data: [currentPrice, currentPrice] }]
+    };
 
     if (loading) {
         return (
@@ -194,6 +260,20 @@ export default function ProductDetailScreen() {
                  </View>
             </SafeAreaView>
         );
+    }
+
+    if (!listing) return null;
+
+    // Image Handling
+    const imagePath = listing?.image_url?.[0];
+    let fullImageUrl = 'https://via.placeholder.com/600'; 
+    if (imagePath) {
+        const cleanPath = imagePath.replace(/\\/g, '/');
+        if (cleanPath.startsWith('http')) fullImageUrl = cleanPath;
+        else {
+             const path = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+             fullImageUrl = `${IMAGE_BASE_URL}${path}`;
+        }
     }
 
     // 2. ถ้าโหลดเสร็จแล้ว แต่ listing ยังเป็น null (หาไม่เจอ/Error)
@@ -210,14 +290,6 @@ export default function ProductDetailScreen() {
         );
     }
 
-    const imagePath = listing?.image_url?.[0];
-    
-    let fullImageUrl = 'https://via.placeholder.com/600'; 
-    if (imagePath) {
-        if (imagePath.startsWith('http')) fullImageUrl = imagePath;
-        else fullImageUrl = `${IMAGE_BASE_URL}${imagePath}`;
-    }
-
     return (
         <SafeAreaView style={styles.safeArea}>
             <Stack.Screen
@@ -231,7 +303,7 @@ export default function ProductDetailScreen() {
                     {/* 1. Parallax Image Area */}
                     <View style={styles.imageArea}>
                         <Image
-                            source={{ uri: fullImageUrl }}
+                            source={{ uri: listingImageUrl }}
                             style={styles.productImage}
                             resizeMode="cover"
                         />
@@ -245,7 +317,23 @@ export default function ProductDetailScreen() {
                     <View style={styles.detailCard}>
                         {/* Seller Info & Price */}
                         <View style={styles.sellerRow}>
-                            <View style={styles.avatarCircle} />
+
+                            {/* 🟢 ส่วนแสดงรูปโปรไฟล์ (เหมือน farmerProfile) */}
+                            <View style={styles.avatarContainer}>
+                                {listing.seller.profile_image ? (
+                                    <Image 
+                                        source={{ uri: getFullImageUrl(listing.seller.profile_image) }} 
+                                        style={styles.avatarImage} 
+                                    />
+                                ) : (
+                                    <View style={styles.avatarCircle}>
+                                        <Text style={styles.avatarInitials}>
+                                            {getInitials(listing.seller.fullname || '')}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+
                             <View style={styles.sellerInfo}>
                                {/* แสดงชื่อผู้ขายจริง */}
                                 <Text style={styles.sellerName}>{listing?.seller?.fullname || 'ไม่ระบุชื่อ'}</Text>
@@ -286,12 +374,14 @@ export default function ProductDetailScreen() {
                         <View style={styles.chartContainer}>
                             {/* LineChart Rendering */}
                             <LineChart
-                                data={priceGraphData}
-                                width={width - 40} // หัก padding ซ้าย-ขวา
+                                data={graphData || defaultGraphData}
+                                width={width - 40}
                                 height={220}
                                 chartConfig={chartConfig}
                                 bezier
                                 style={styles.chart}
+                                fromZero={true} 
+                                withInnerLines={false}
                             />
                         </View>
                         
@@ -372,11 +462,27 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 15,
     },
+    avatarContainer: {
+        marginRight: 10,
+    },
     avatarCircle: {
         width: 50,
         height: 50,
         borderRadius: 25,
         backgroundColor: '#e0e0e0',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarImage: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: '#e0e0e0',
+    },
+    avatarInitials: {
+        fontSize: 18, 
+        fontWeight: 'bold',
+        color: '#555',
     },
     sellerInfo: {
         flex: 1,

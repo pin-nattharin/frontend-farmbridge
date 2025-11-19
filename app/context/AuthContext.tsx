@@ -100,12 +100,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       await AsyncStorage.setItem('userToken', newToken);
       await AsyncStorage.setItem('userData', JSON.stringify(newUser));
-      
-      // (ถ้าคุณใช้ axios)
-      // api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-
-      // เมื่อ login สำเร็จ ให้เด้งไปหน้า Home
-      router.replace('../buyer/homeBuyer'); // (แก้ path นี้ให้ถูก)
+      if (newUser.role === 'farmer') {
+        router.replace('/farmer/homeFarmer');
+    } else {
+        router.replace('/buyer/homeBuyer');
+    }
     } catch (e) {
       console.error("Failed to save token", e);
     }

@@ -1,5 +1,6 @@
+// notification.tsx
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Platform, StatusBar } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
@@ -8,40 +9,42 @@ import NavbarFarmer from '../../components/ui/FarmerNavbar';
 import api from '../../services/api'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-interface NotificationItem {
+interface OrderItem {
     id: number;
-    type: string;
-    message: string;
-    related_id: number;
+    quantity_ordered: string;
+    total_price: string;
+    status: string; 
+    pickup_slot: string; 
     created_at: string;
-    is_read: boolean;
-    OrderInfo?: {
-        total_price: string;
-        quantity_ordered: string;
-        Buyer?: {
-            fullname: string;
-            phone: string;
-        };
+    Listing: {
+        id: number;
+        product_name: string;
+    };
+    Buyer: {
+        id: number;
+        fullname: string;
+        phone?: string; 
     };
 }
 
 export default function SaleNotificationScreen() {
     const router = useRouter();
-    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    const [orders, setOrders] = useState<OrderItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const fetchNotifications = async () => {
+    const fetchSalesHistory = async () => {
         try {
             const token = await AsyncStorage.getItem('userToken');
             if (!token) return;
 
-            const response = await api.get('/notifications', {
+            const response = await api.get('/orders/history/sales', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setNotifications(response.data);
+            
+            setOrders(response.data);
         } catch (error) {
-            console.error("Fetch Noti Error:", error);
+            console.error("Fetch Sales Error:", error);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -50,23 +53,18 @@ export default function SaleNotificationScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            fetchNotifications();
+            fetchSalesHistory();
         }, [])
     );
 
-    const handleCardPress = (item: NotificationItem) => {
-        //if (item.type === 'sale' && item.related_id) {
-            // ✅ พาไปหน้า verifyPickup พร้อมส่ง orderId
-            router.push({
-                pathname: '/farmer/verifyPickup',
-                params: { orderId: item.related_id } 
-            });
-        //} else {
-            //Alert.alert("แจ้งเตือน", item.message);
-        //}
+    const handleCardPress = (item: OrderItem) => {
+        router.push({
+            pathname: '/farmer/verifyPickup',
+            params: { orderId: item.id } 
+        });
     };
 
-    const handleCall = (phone: string) => {
+    const handleCall = (phone?: string) => {
         if (phone) Linking.openURL(`tel:${phone}`);
     };
     
@@ -79,46 +77,56 @@ export default function SaleNotificationScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={styles.contentWrapper}>
+            {/* ⭐️ ปรับ Header ตรงนี้ให้ขยับลงมา */}
+            <View style={styles.headerContainer}>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                     <MaterialCommunityIcons name="arrow-left" size={28} color="#003366" />
+                </TouchableOpacity>
                 <Text style={styles.pageTitle}>การแจ้งเตือน</Text>
+            </View>
 
+            <View style={styles.contentWrapper}>
                 {loading ? (
                     <ActivityIndicator size="large" color="#0056b3" style={{marginTop: 20}}/>
                 ) : (
                     <ScrollView 
                         contentContainerStyle={styles.scrollContent}
-                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchNotifications();}} />}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchSalesHistory();}} />}
                     >
-                        {notifications.length === 0 ? (
-                            <Text style={{textAlign:'center', color:'#999', marginTop:20}}>ไม่มีการแจ้งเตือน</Text>
+                        {orders.length === 0 ? (
+                            <Text style={{textAlign:'center', color:'#999', marginTop:20}}>ไม่มีรายการแจ้งเตือน</Text>
                         ) : (
-                            notifications.map((item) => (
+                            orders.map((item) => (
                                 <TouchableOpacity
                                     key={item.id}
-                                    style={[cardStyles.card, !item.is_read && { backgroundColor: '#e6f7ff' }]}
+                                    style={cardStyles.card}
                                     onPress={() => handleCardPress(item)}
-                                    activeOpacity={0.8}
+                                    activeOpacity={0.9}
                                 >
-                                    <View style={cardStyles.indicator} />
+                                    <View style={cardStyles.leftBar} />
+                                    
                                     <View style={cardStyles.content}>
                                         <View style={cardStyles.headerRow}>
-                                            <Text style={cardStyles.statusText}>
-                                                {item.type === 'sale' ? '📦 ขายได้แล้ว!' : '🔔 แจ้งเตือน'}
-                                            </Text>
-                                            {item.OrderInfo?.Buyer?.phone && (
-                                                <TouchableOpacity onPress={() => handleCall(item.OrderInfo!.Buyer!.phone)}>
-                                                    <MaterialCommunityIcons name="phone" size={24} color="#28a745" />
-                                                </TouchableOpacity>
-                                            )}
+                                            <Text style={cardStyles.titleText}>ขายได้แล้ว !</Text>
+                                            <TouchableOpacity onPress={() => handleCall(item.Buyer?.phone)}>
+                                                <MaterialCommunityIcons name="phone" size={24} color="#28a745" />
+                                            </TouchableOpacity>
                                         </View>
 
-                                        <Text style={cardStyles.messageLine} numberOfLines={2}>
-                                            {item.message}
-                                        </Text>
-                                        
-                                        <Text style={cardStyles.dateText}>
-                                            {new Date(item.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' })}
-                                        </Text>
+                                        <View style={cardStyles.body}>
+                                            <Text style={cardStyles.detailText}>
+                                                <Text style={cardStyles.blueText}>{item.Buyer?.fullname || 'ลูกค้า'}</Text>
+                                                {' '}ชำระค่า{item.Listing?.product_name}
+                                            </Text>
+                                            
+                                            <Text style={cardStyles.detailText}>
+                                                {parseFloat(item.quantity_ordered).toFixed(0)} กก. เป็นเงิน {parseFloat(item.total_price).toLocaleString()} บาทอยู่ในระบบ
+                                            </Text>
+                                            
+                                            <Text style={cardStyles.subDetailText}>
+                                                กรุณาเตรียมของก่อน {item.pickup_slot || new Date(item.created_at).toLocaleDateString('th-TH')}
+                                            </Text>
+                                        </View>
                                     </View>
                                 </TouchableOpacity>
                             ))
@@ -141,106 +149,97 @@ export default function SaleNotificationScreen() {
 }
 
 // ----------------------------------------------------
-// 4. Stylesheet
+// Stylesheet
 // ----------------------------------------------------
 
 const styles = StyleSheet.create({
-    backButton: {
-        position: 'absolute', // ทำให้ปุ่มลอย
-        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
-        left: 15,
-        zIndex: 10, // ให้อยู่ด้านบนสุด
-        padding: 5,
-    },
     safeArea: {
         flex: 1,
-        backgroundColor: '#f4f4f4',
+        //backgroundColor: '#FFFFFF',
+        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    },
+    headerContainer: {
+        // ⭐️ เพิ่ม marginTop เพื่อขยับลงมาให้เหมือนรูป
+        marginTop: 30, 
+        marginBottom: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 50,
+        position: 'relative',
+        paddingHorizontal: 16,
+    },
+    backButton: {
+        position: 'absolute',
+        left: 16,
+        zIndex: 10,
+        padding: 5, // เพิ่มพื้นที่กดให้ง่ายขึ้น
+    },
+    pageTitle: {
+        fontSize: 26, // เพิ่มขนาดตัวอักษรอีกนิดเพื่อให้ชัดเจน
+        fontWeight: 'bold',
+        color: '#0047ab', 
     },
     contentWrapper: {
         flex: 1,
-    },
-    stackHeaderTitle: {
-        fontWeight: 'bold',
-        fontSize: 20,
-        color: '#333',
-    },
-    pageTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#0056b3',
-        marginHorizontal: 16,
-        marginTop: 70,
-        marginBottom: 20,
-        textAlign: 'center',
+        backgroundColor: '#f4f4f4',
     },
     scrollContent: {
-        paddingVertical: 5,
+        paddingVertical: 15,
         paddingHorizontal: 16,
         paddingBottom: 80,
     },
 });
 
-
 const cardStyles = StyleSheet.create({
     card: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#eff6ff',
         borderRadius: 12,
         marginBottom: 15,
         flexDirection: 'row',
-        alignItems: 'center',
-        padding: 15,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-        elevation: 2,
         overflow: 'hidden',
-        minHeight: 100, // กำหนดความสูงขั้นต่ำ
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        minHeight: 100,
     },
-    indicator: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        width: 8,
-        backgroundColor: '#0056b3', // สีน้ำเงินหลัก
-        borderTopLeftRadius: 12,
-        borderBottomLeftRadius: 12,
+    leftBar: {
+        width: 10,
+        backgroundColor: '#0047ab',
     },
     content: {
         flex: 1,
-        paddingLeft: 15, // เว้นระยะห่างจากแถบสีน้ำเงิน
+        padding: 16,
     },
     headerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 5,
+        marginBottom: 8,
     },
-    statusText: {
+    titleText: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#0056b3',
+        color: '#0047ab',
     },
-    messageLine: {
+    body: {
+        gap: 4,
+    },
+    detailText: {
         fontSize: 14,
-        color: '#333',
-        lineHeight: 20,
-        marginBottom: 5,
-        paddingRight: 40,
+        color: '#334155',
+        lineHeight: 22,
     },
-    buyerNameText: {
-        fontWeight: 'bold',
+    blueText: {
+        color: '#0047ab',
+        fontWeight: '500',
+        textDecorationLine: 'underline',
     },
-    deadlineText: {
-        fontSize: 14,
-        color: '#888',
-        marginTop: 5,
-    },
-    dateText: { 
-        fontSize: 12, 
-        color: '#888', 
-        marginTop: 5, 
-        textAlign: 'right' 
-    },
+    subDetailText: {
+        fontSize: 13,
+        color: '#0047ab',
+        marginTop: 4,
+    }
 });

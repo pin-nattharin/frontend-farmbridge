@@ -35,20 +35,9 @@ const DemandCard: React.FC<DemandCardProps> = ({
     unit,
     onDelete,
 }) => {
-    // เลือกรูปภาพตามชื่อสินค้า (หรือใช้ Default)
-    let imageUrl = 'https://via.placeholder.com/100';
-    if (productName.includes('มะม่วง')) imageUrl = 'https://picsum.photos/id/66/100/100'; // ตัวอย่าง
-    else if (productName.includes('ทุเรียน')) imageUrl = 'https://picsum.photos/id/1080/100/100';
 
     return (
         <View style={cardStyles.card}>
-            <View style={cardStyles.imageContainer}>
-                <Image
-                    source={{ uri: imageUrl }} 
-                    style={cardStyles.image}
-                    resizeMode="cover"
-                />
-            </View>
             
             <View style={cardStyles.infoContainer}>
                 <View>
@@ -228,8 +217,8 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#0056b3',
         marginHorizontal: 16,
-        marginTop: 70,
-        marginBottom: 10,
+        marginTop: 100,
+        marginBottom: 30,
         textAlign: 'center',
     },
     scrollContent: {
@@ -281,6 +270,7 @@ const cardStyles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingVertical: 15,
+        marginLeft: 40,
     },
     productName: {
         fontSize: 18,

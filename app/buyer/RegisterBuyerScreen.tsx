@@ -2,6 +2,7 @@ import React, { useState } from 'react'; // 1. Import useState
 import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity, Alert } from 'react-native'; // 2. Import Alert
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้อง ***
 import RoundedInput from '../../components/ui/RoundedInput'; 
@@ -23,7 +24,7 @@ export const registerBaseStyles = StyleSheet.create({
         height: '100%', 
     },
     scrollContainer: {
-        paddingTop: 90,
+        paddingTop: 50,
         alignItems: 'center',
     },
     card: {
@@ -81,6 +82,13 @@ export const registerBaseStyles = StyleSheet.create({
         fontSize: 14,
         color: '#718096', 
     },
+    backButton: {
+        position: 'absolute',
+        top: 50, 
+        left: 20,
+        zIndex: 10, 
+        padding: 5,
+    },
 });
 
 const RegisterBuyerScreen: React.FC = () => {
@@ -94,6 +102,10 @@ const RegisterBuyerScreen: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleBack = () => {
+      router.back();
+  };
 
   // 5. เปลี่ยน handleRegister ให้เป็น async และเพิ่ม Logic
   const handleRegister = async () => {
@@ -146,6 +158,10 @@ const RegisterBuyerScreen: React.FC = () => {
         start={{ x: 0.1, y: 0.1 }}
         end={{ x: 1, y: 1 }}
       />
+
+      <TouchableOpacity onPress={handleBack} style={registerBaseStyles.backButton}>
+          <Ionicons name="arrow-back" size={25} color="black" />
+      </TouchableOpacity>
 
       <ScrollView contentContainerStyle={registerBaseStyles.scrollContainer}>
         <View style={registerBaseStyles.card}>

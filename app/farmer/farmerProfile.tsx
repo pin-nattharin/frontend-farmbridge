@@ -10,7 +10,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 
-import { useRouter, useFocusEffect } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import FarmerNavbar from '../../components/ui/FarmerNavbar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api'; 
@@ -100,20 +100,31 @@ const FarmerProfileScreen = () => {
                 {
                     text: "ออกจากระบบ",
                     onPress: async () => { 
+                        console.log("🟢 [Logout Step 1] User confirmed logout");
                         try {
                             const token = await AsyncStorage.getItem('userToken');
+                            console.log("🔵 [Logout Step 2] Current Token found:", token ? "Yes" : "No");
+
+                            // พยายามยิง API Logout เพื่อเคลียร์ฝั่ง Server (ถ้าทำได้)
                             if (token) {
+                                console.log("🟡 [Logout Step 3] Calling API /auth/logout...");
                                 await api.post('/auth/logout', {}, {
                                     headers: { Authorization: `Bearer ${token}` }
-                                }).catch(() => {});
+                                })
+                                .then(() => console.log("✅ [Logout Step 4] API Logout Success"))
+                                .catch((err) => console.log("⚠️ [Logout Step 4] API Logout Failed (Network or Token invalid):", err.message));
                             }
-                            // ล้าง Token ออกจากเครื่อง
+                        } catch (e) {
+                            console.error("🔴 [Logout Error] Process failed:", e);
+                        } finally {
+                            console.log("🟠 [Logout Step 5] Clearing AsyncStorage...");
+                            // ⭐️ บังคับล้าง Token ในเครื่องเสมอ ไม่ว่าจะยิง API สำเร็จหรือไม่
                             await AsyncStorage.removeItem('userToken');
                             await AsyncStorage.removeItem('userData');
-                            router.replace('/LoginScreen');
-                        } catch (e) {
-                            await AsyncStorage.clear();
-                            router.replace('/LoginScreen');
+                            
+                            console.log("⚫ [Logout Step 6] Storage cleared. Navigating to LoginScreen.");
+                            // พาไปหน้า Login
+                            router.replace('../index');
                         }
                     },
                     style: "destructive"

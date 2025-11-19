@@ -10,7 +10,7 @@ interface ProductCardProps {
   unit: string; // เช่น 'กก.'
   grade: string; // เช่น 'เกรด C'
   distance: string; // เช่น '2.5 กม.'
-  imageUrl: string; // URL ของรูปภาพสินค้า
+  imageUrl: string | null | undefined; // URL ของรูปภาพสินค้า
   onPress: () => void; // ฟังก์ชันที่จะทำงานเมื่อกดที่การ์ด
   style?: ViewStyle;
 }
@@ -25,6 +25,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
   onPress,
   style,
 }) => {
+
+  const imageSource = (imageUrl && imageUrl !== '') 
+    ? { uri: imageUrl } 
+    : { uri: 'https://via.placeholder.com/300?text=No+Image' };
+    
   return (
     <TouchableOpacity style={[styles.card, style]} onPress={onPress} activeOpacity={0.8}>
       {/* ส่วนแสดงรูปภาพสินค้า */}
@@ -32,7 +37,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
         {/* ใช้ Image.source.uri สำหรับรูปภาพจาก URL */}
         <Image 
           style={styles.productImage}
-        source={{ uri: imageUrl }} 
+          source={imageSource}
+          resizeMode="cover"
         />
         {/* แถบเกรดสินค้า */}
         <View style={styles.gradeBadge}>

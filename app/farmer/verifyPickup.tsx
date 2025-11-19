@@ -16,40 +16,59 @@ import { Ionicons } from '@expo/vector-icons';
 import api from '../../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// 🟢 กำหนด Base URL (Emulator ใช้ 10.0.2.2)
+const IMAGE_BASE_URL = 'http://10.0.2.2:3000'; 
+
+interface OrderDetails {
+    id: number;
+    quantity_ordered: string;
+    total_price: string;
+    status: string;
+    Listing: {
+        product_name: string;
+        // รองรับ image_url เป็น array string
+        image_url?: string[] | null; 
+    };
+    Buyer: {
+        fullname: string;
+        phone?: string;
+    };
+}
+
 const VerifyPickupScreen = () => {
   const router = useRouter();
-  
-  // ✅ รับ ID จากหน้า Notification
   const { orderId } = useLocalSearchParams();
   
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
-  const [orderData, setOrderData] = useState<any>(null);
+  const [orderData, setOrderData] = useState<OrderDetails | null>(null);
 
-  // ✅ ดึงข้อมูลออเดอร์จริง
   useEffect(() => {
     const fetchOrder = async () => {
         try {
             const token = await AsyncStorage.getItem('userToken');
-            // Backend ต้องมี API: GET /orders/:id (เพื่อดูรายละเอียด)
-            // (ถ้ายังไม่มี ให้ใช้ข้อมูลจาก params ไปพลางๆ หรือสร้าง API เพิ่ม)
-            // สมมติว่ามี API นี้แล้ว:
-            /* const response = await api.get(`/orders/${orderId}`, { headers: ... });
-               setOrderData(response.data);
-            */
             
-            // *ถ้า Backend ยังไม่พร้อม ให้ Mock ไปก่อนว่ามีข้อมูล*
-            setOrderData({
-                id: orderId,
-                productName: 'สินค้า (รอ API)',
-                buyerName: 'ลูกค้า (รอ API)',
-                quantity: '-',
-                totalPrice: '-'
+            // เรียก API ประวัติการขายทั้งหมด (ที่มีอยู่แล้ว)
+            const response = await api.get('/orders/history/sales', {
+                headers: { Authorization: `Bearer ${token}` }
             });
+            
+            const allOrders = response.data;
+            // ค้นหา Order ที่ต้องการจากรายการทั้งหมด
+            const targetOrder = allOrders.find((o: OrderDetails) => o.id == Number(orderId));
+
+            if (targetOrder) {
+                setOrderData(targetOrder);
+            } else {
+                Alert.alert("ไม่พบข้อมูล", "ไม่พบรายการสั่งซื้อนี้ในระบบ");
+                router.back();
+            }
 
         } catch (error) {
+            console.error("Fetch Error:", error);
             Alert.alert("Error", "ไม่สามารถโหลดข้อมูลได้");
+            router.back();
         } finally {
             setFetching(false);
         }
@@ -69,16 +88,14 @@ const VerifyPickupScreen = () => {
     try {
         const token = await AsyncStorage.getItem('userToken');
         
-        // ✅ ยิง API ยืนยันรหัส (ไปที่ order.controller.js -> confirmPickup)
-        const response = await api.post(`/orders/${orderId}/confirm`, {
+        // API ยืนยัน (confirm)
+        await api.post(`/orders/${orderId}/confirm`, {
             confirmation_code: code.trim()
         }, {
             headers: { Authorization: `Bearer ${token}` }
         });
 
-        Alert.alert("สำเร็จ", "ยืนยันการส่งมอบเรียบร้อยแล้ว!", [
-            { text: "ตกลง", onPress: () => router.replace('/farmer/dashboard') }
-        ]);
+        router.replace('/farmer/pickupSuccess');
 
     } catch (error: any) {
         const msg = error.response?.data?.message || "รหัสไม่ถูกต้อง หรือเกิดข้อผิดพลาด";
@@ -92,6 +109,30 @@ const VerifyPickupScreen = () => {
       return <SafeAreaView style={styles.safeArea}><ActivityIndicator size="large" color="#0056b3" style={{marginTop:50}}/></SafeAreaView>;
   }
 
+  // 🟢 Logic จัดการรูปภาพ (ดึงรูปแรกจาก array)
+  const getProductImageSource = () => {
+      const rawPath = orderData?.Listing?.image_url?.[0]; // ดึงรูปแรก
+      
+      if (!rawPath) return { uri: 'https://via.placeholder.com/150?text=No+Image' };
+
+      let cleanPath = rawPath.replace(/['"]+/g, '').replace(/\\/g, '/');
+      let finalUrl = '';
+
+      if (cleanPath.startsWith('content://') || cleanPath.startsWith('file://')) {
+          finalUrl = cleanPath;
+      } else if (cleanPath.startsWith('http')) {
+          finalUrl = cleanPath;
+      } else {
+          // ถ้าเป็น path บน server
+          cleanPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+          if (!cleanPath.startsWith('uploads/')) {
+              cleanPath = `uploads/${cleanPath}`;
+          }
+          finalUrl = `${IMAGE_BASE_URL}/${cleanPath}`;
+      }
+      return { uri: finalUrl };
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -103,15 +144,28 @@ const VerifyPickupScreen = () => {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
             
-          {/* แสดงข้อมูล (ที่ดึงมาจาก API หรือ Mock) */}
           <View style={styles.itemContainer}>
-            <Image source={{ uri: 'https://via.placeholder.com/150' }} style={styles.itemImage} />
+            {/* 🟢 แสดงรูปภาพ */}
+            <Image 
+                source={getProductImageSource()} 
+                style={styles.itemImage} 
+                resizeMode="cover" // เพิ่ม resizeMode ให้รูปไม่เพี้ยน
+            />
+            
             <View style={styles.itemInfo}>
-              {/* แสดงข้อมูลจริงถ้ามี */}
-              <Text style={styles.sellerName}>ผู้ซื้อ: {orderData?.buyerName}</Text>
-              <Text style={styles.itemText}>สินค้า: {orderData?.productName}</Text>
-              <Text style={styles.itemText}>จำนวน: {orderData?.quantity}</Text>
-              <Text style={styles.itemText}>ยอดเงิน: {orderData?.totalPrice} บาท</Text>
+              {/* แสดงข้อมูลที่หาเจอ */}
+              <Text style={styles.sellerName}>
+                  ผู้ซื้อ: {orderData?.Buyer?.fullname || 'ลูกค้าทั่วไป'}
+              </Text>
+              <Text style={styles.itemText}>
+                  สินค้า: {orderData?.Listing?.product_name}
+              </Text>
+              <Text style={styles.itemText}>
+                จำนวน: {orderData ? parseFloat(orderData.quantity_ordered).toFixed(0) : '-'} หน่วย
+              </Text>
+              <Text style={styles.itemText}>
+                ยอดเงิน: {orderData ? parseFloat(orderData.total_price).toLocaleString() : '-'} บาท
+              </Text>
             </View>
           </View>
 
@@ -138,13 +192,12 @@ const VerifyPickupScreen = () => {
   );
 };
 
-// --- Stylesheet ---
 const styles = StyleSheet.create({
   backButton: {
-        position: 'absolute', // ทำให้ปุ่มลอย
-        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        position: 'absolute',
+        top: 50,
         left: 15,
-        zIndex: 10, // ให้อยู่ด้านบนสุด
+        zIndex: 10,
         padding: 5,
     },
   safeArea: {
@@ -174,8 +227,10 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 12,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#e0e0e0', 
     marginRight: 16,
+    borderWidth: 1,         // ใส่ขอบเล็กน้อย
+    borderColor: '#f0f0f0'
   },
   itemInfo: {
     flex: 1,
@@ -209,7 +264,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   buttonSolid: {
-    backgroundColor: '#28a745', // สีเขียว
+    backgroundColor: '#28a745',
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
@@ -220,13 +275,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-    pageTitle: {
+  pageTitle: {
     fontSize: 22,
     fontWeight: 'bold',
     color: '#074E9F',
     marginTop: 70,
     marginBottom: 10,
-    marginLeft: 100,
+    marginLeft: 100, 
     paddingLeft: 20,
   },
 });

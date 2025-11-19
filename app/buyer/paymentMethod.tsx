@@ -2,12 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router'; 
-import api from '../../services/api'; // ✅ Import API
+import api from '../../services/api'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ----------------------------------------------------
-// DUMMY DATA และ Types
-// ----------------------------------------------------
 const PAYMENT_OPTIONS = [
     { 
         id: 'bank_transfer', 
@@ -20,9 +17,7 @@ const PAYMENT_OPTIONS = [
 
 type PaymentMethodId = 'bank_transfer'; 
 
-// ----------------------------------------------------
-// 1. Component ย่อย: LoadingOverlay
-// ----------------------------------------------------
+// Loading Overlay
 interface LoadingOverlayProps {
     isVisible: boolean;
     message?: string;
@@ -38,10 +33,7 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ isVisible, message = '�
         >
             <View style={overlayStyles.overlay}>
                 <View style={overlayStyles.contentBox}>
-                    <ActivityIndicator 
-                        size="large" 
-                        color="#074E9F" 
-                    />
+                    <ActivityIndicator size="large" color="#074E9F" />
                     <Text style={overlayStyles.messageText}>{message}</Text>
                 </View>
             </View>
@@ -78,9 +70,7 @@ const overlayStyles = StyleSheet.create({
 });
 
 
-// ----------------------------------------------------
-// 2. Component ย่อย: PaymentOption (Radio Button)
-// ----------------------------------------------------
+// Payment Option Component
 interface PaymentOptionProps {
     option: typeof PAYMENT_OPTIONS[0]; 
     isSelected: boolean;
@@ -96,12 +86,9 @@ const PaymentOption: React.FC<PaymentOptionProps> = ({ option, isSelected, onSel
             disabled={option.disabled}
         >
             <View style={styles.radioContainer}>
-                {/* 🟢 Radio Button Circle */}
                 <View style={styles.radioCircle}>
                     {isSelected && <View style={styles.radioDot} />}
                 </View>
-
-                {/* Icon และรายละเอียด */}
                 <MaterialCommunityIcons 
                     name={option.icon as any} 
                     size={28} 
@@ -121,52 +108,51 @@ const PaymentOption: React.FC<PaymentOptionProps> = ({ option, isSelected, onSel
     );
 };
 
-
-// ----------------------------------------------------
-// 3. หน้าจอหลัก PaymentMethodScreen
-// ----------------------------------------------------
-
+// Main Screen
 export default function PaymentMethodScreen() {
     const router = useRouter();
     const { listing_id, quantity, total_amount, pickup_date } = useLocalSearchParams();
 
     const totalPrice = parseFloat(total_amount as string) || 0;
-
     const [selectedMethod, setSelectedMethod] = useState<PaymentMethodId>('bank_transfer'); 
     const [isLoading, setIsLoading] = useState(false); 
 
     const handleConfirmPayment = async () => {
+        if (isLoading) return;
         setIsLoading(true); 
         
         try {
-            // 1. เตรียมข้อมูล (แปลง String เป็น Number ให้ชัดเจน)
-            const payload = {
-                listing_id: Number(listing_id), // ✅ แปลงเป็นตัวเลข
-                quantity: Number(quantity),     // ✅ แปลงเป็นตัวเลข
-                pickup_slot: pickup_date        // ส่งไปเป็น String ได้เลย
-            };
+            // 1. แปลงข้อมูลให้เป็น Number ชัวร์ๆ (ป้องกันการส่ง String ไป)
+            const numListingId = Number(listing_id);
+            const numQuantity = Number(quantity);
 
-            // 🔍 DEBUG: ดูว่าส่งอะไรไปบ้าง (ดูใน Terminal)
-            console.log("🚀 Sending Order Payload:", payload);
-
-            if (!payload.listing_id || !payload.quantity) {
-                throw new Error("ข้อมูลสินค้าไม่ครบถ้วน (ID หรือ จำนวนเป็นศูนย์)");
+            if (!numListingId || isNaN(numListingId) || !numQuantity || isNaN(numQuantity)) {
+                throw new Error("ข้อมูลสินค้าไม่ถูกต้อง (Listing ID หรือ จำนวน)");
             }
 
-            // 2. หน่วงเวลา 3 วินาที
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            // 2. หน่วงเวลาเล็กน้อย (UX)
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
             const token = await AsyncStorage.getItem('userToken');
             if (!token) throw new Error("กรุณาเข้าสู่ระบบใหม่");
 
-            // 3. ยิง API สร้างออเดอร์
+            // 3. เตรียม Payload
+            const payload = {
+                listing_id: numListingId,
+                quantity: numQuantity,
+                pickup_slot: pickup_date // ส่งเป็น string
+            };
+            
+            console.log("🚀 Sending Payload:", payload);
+
+            // 4. ยิง API
             const response = await api.post('/orders', payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             const order = response.data.order; 
 
-            // 4. ไปหน้าสำเร็จ
+            // 5. ไปหน้าสำเร็จ
             router.replace({
                 pathname: '/buyer/paymentSuccess',
                 params: {
@@ -178,7 +164,7 @@ export default function PaymentMethodScreen() {
 
         } catch (error: any) {
             console.error("Order Failed:", error);
-            const msg = error.response?.data?.message || "เกิดข้อผิดพลาดในการสั่งซื้อ";
+            const msg = error.response?.data?.message || error.message || "เกิดข้อผิดพลาดในการสั่งซื้อ";
             Alert.alert("ล้มเหลว", msg);
         } finally {
             setIsLoading(false);
@@ -187,7 +173,6 @@ export default function PaymentMethodScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={24} color="#0056b3" />
@@ -208,53 +193,38 @@ export default function PaymentMethodScreen() {
                     />
                 ))}
 
-                {/* 🟢 Summary และ ปุ่ม (รวมอยู่ใน ScrollView) */}
                 <View style={styles.summaryContainer}>
-    
-                    {/* 1. Summary Box */}
                     <View style={styles.summaryBox}>
                         <View style={styles.summaryRow}>
                             <Text style={styles.summaryTotalLabel}>ยอดที่ต้องชำระ:</Text>
-                            <Text style={styles.summaryTotalValue}>{totalPrice.toFixed(2)} บาท</Text>
+                            <Text style={styles.summaryTotalValue}>{totalPrice.toLocaleString()} บาท</Text>
                         </View>
                     </View>
 
-                    {/* 2. ปุ่มยืนยันชำระเงิน (ขยับขึ้นมา) */}
                     <TouchableOpacity 
                         style={[styles.confirmButtonInBody, isLoading && { backgroundColor: '#AAA' }]} 
                         onPress={handleConfirmPayment}
                         disabled={isLoading} 
                     >
                         <Text style={styles.confirmButtonText}>
-                            {isLoading ? 'กำลังดำเนินการ...' : `ยืนยันชำระเงิน (${totalPrice} บาท)`}
+                            {isLoading ? 'กำลังดำเนินการ...' : `ยืนยันชำระเงิน (${totalPrice.toLocaleString()} บาท)`}
                         </Text>
                     </TouchableOpacity>
                 </View>
                 
-                {/* Space at bottom */}
                 <View style={{ height: 20 }} /> 
             </ScrollView>
             
-            {/* 🟢 Loading Overlay */}
-            <LoadingOverlay 
-                isVisible={isLoading} 
-                message="กำลังตรวจสอบรายการ..." 
-            />
-            
+            <LoadingOverlay isVisible={isLoading} message="กำลังทำรายการ..." />
         </SafeAreaView>
     );
 }
-
-// ----------------------------------------------------
-// 4. Stylesheet
-// ----------------------------------------------------
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F7FAFC',
     },
-    // Header
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -269,7 +239,6 @@ const styles = StyleSheet.create({
         paddingBottom: 20,
         paddingTop: 70,
     },
-    // Main Content
     scrollView: {
         paddingHorizontal: 20,
         paddingTop: 15,
@@ -280,7 +249,6 @@ const styles = StyleSheet.create({
         color: '#555',
         marginBottom: 15,
     },
-    // Payment Option Card
     optionContainer: {
         backgroundColor: '#FFF',
         padding: 15,
@@ -313,7 +281,6 @@ const styles = StyleSheet.create({
         color: '#777',
         marginTop: 2,
     },
-    // Radio Button Styles
     radioCircle: {
         height: 22,
         width: 22,
@@ -329,7 +296,6 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         backgroundColor: '#074E9F',
     },
-    // Summary Container and Button Placement
     summaryContainer: {
         marginTop: 20,
         marginBottom: 20, 
@@ -338,7 +304,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF',
         padding: 15,
         borderRadius: 10,
-        marginBottom: 20, // 🟢 ระยะห่างระหว่าง Summary Box และปุ่ม
+        marginBottom: 20, 
     },
     summaryRow: {
         flexDirection: 'row',
@@ -355,7 +321,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#28a745',
     },
-    // 🟢 ปุ่มยืนยันชำระเงินที่ถูกย้ายเข้า ScrollView
     confirmButtonInBody: {
         backgroundColor: '#28a745',
         borderRadius: 10,
@@ -367,6 +332,4 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
     },
-    // 🔴 ลบ Styles ที่ไม่จำเป็น
-    bottomBar: { display: 'none' }, 
 });

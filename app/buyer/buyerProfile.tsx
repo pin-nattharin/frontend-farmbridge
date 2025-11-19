@@ -10,7 +10,7 @@ import {
     ActivityIndicator
 } from 'react-native';
 
-import { useRouter, useFocusEffect } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import BuyerNavbar from '../../components/ui/BuyerNavbar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
@@ -62,12 +62,12 @@ const BuyerProfileScreen = () => {
                     console.error("Failed to load buyer data:", error);
                     if (error.response && error.response.status === 401) {
                         Alert.alert("Session หมดอายุ", "กรุณาเข้าสู่ระบบใหม่");
+                        await AsyncStorage.removeItem('userToken');
+                        await AsyncStorage.removeItem('userData');
+                        router.replace('/LoginScreen');
                     } else {
                         Alert.alert("ข้อผิดพลาด", "ไม่สามารถโหลดข้อมูลโปรไฟล์ได้");
                     }
-                    await AsyncStorage.removeItem('userToken');
-                    await AsyncStorage.removeItem('userData');
-                    router.replace('/LoginScreen');
                 } finally {
                     setLoading(false);
                 }
@@ -93,19 +93,31 @@ const BuyerProfileScreen = () => {
                 {
                     text: "ออกจากระบบ",
                     onPress: async () => { 
+                        console.log("🟢 [Logout Step 1] User confirmed logout");
                        try {
                             const token = await AsyncStorage.getItem('userToken');
+                            console.log("🔵 [Logout Step 2] Current Token found:", token ? "Yes" : "No");
                             if (token) {
+                                console.log("🟡 [Logout Step 3] Calling API /auth/logout...");
                                 await api.post('/auth/logout', {}, {
                                     headers: { Authorization: `Bearer ${token}` }
-                                }).catch(() => {});
+                                })
+                                .then(() => console.log("✅ [Logout Step 4] API Logout Success"))
+                                .catch((err) => console.log("⚠️ [Logout Step 4] API Logout Failed (Network or Token invalid):", err.message));
                             }
                             await AsyncStorage.removeItem('userToken');
                             await AsyncStorage.removeItem('userData');
                             router.replace('/LoginScreen');
                         } catch (e) {
-                             console.error("Logout failed", e);
-                             router.replace('/LoginScreen');
+                             console.error("🔴 [Logout Error] Process failed:", e);
+                        } finally {
+                            console.log("🟠 [Logout Step 5] Clearing AsyncStorage...");
+                            // ⭐️ บังคับล้าง Token ในเครื่องเสมอ ไม่ว่าจะยิง API สำเร็จหรือไม่
+                            await AsyncStorage.removeItem('userToken');
+                            await AsyncStorage.removeItem('userData');
+                            
+                            console.log("⚫ [Logout Step 6] Storage cleared. Navigating to LoginScreen.");
+                            router.replace('./index');
                         }
                     },
                     style: "destructive"
@@ -130,7 +142,7 @@ const BuyerProfileScreen = () => {
     // ✅ 1. เช็ค Loading ก่อน (สำคัญมาก ห้ามเอาไว้หลัง const initials)
     if (loading) {
         return (
-            <SafeAreaView style={styles.safeArea}>
+            <SafeAreaView style={styles.fullscreen}>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                     <ActivityIndicator size="large" color="#0056b3" />
                     <Text style={{ marginTop: 10, color: '#666' }}>กำลังโหลดข้อมูล...</Text>
@@ -150,7 +162,8 @@ const BuyerProfileScreen = () => {
     const lastName = buyerData.fullname && buyerData.fullname.split(' ').length > 1 ? buyerData.fullname.split(' ')[1] : '';
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={styles.fullscreen}>
+            <Stack.Screen options={{ headerShown: false }} />
             <View style={styles.contentWrapper}>
                 <ScrollView style={styles.container}>
                     <View style={styles.headerBackground}>
@@ -205,7 +218,7 @@ const BuyerProfileScreen = () => {
 
 // --- (Styles ทั้งหมดเหมือนเดิม) ---
 const styles = StyleSheet.create({
-    safeArea: {
+    fullscreen: {
         flex: 1,
         backgroundColor: '#f4f4f4',
     },
@@ -218,15 +231,15 @@ const styles = StyleSheet.create({
     },
     headerBackground: {
         backgroundColor: '#0056b3',
-        height: 180,
-        paddingTop: 20,
+        height: 220,
+        paddingTop: 60,
         alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 20,
+        fontSize: 25,
         fontWeight: 'bold',
         color: 'white',
-        marginTop: 70,
+        marginTop: 25,
     },
     contentCard: {
         backgroundColor: 'white',

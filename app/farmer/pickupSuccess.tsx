@@ -13,7 +13,7 @@ const PickupSuccessScreen = () => {
   const router = useRouter();
 
   const handleOK = () => {
-    router.replace('/'); 
+    router.replace('/farmer/homeFarmer'); 
   };
 
   return (

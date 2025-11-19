@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient'; // สำหรับพื้นหลังไล่ระดับ
 import { useRouter } from 'expo-router'; // สำหรับการนำทาง
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Alert } from 'react-native';
+import { StyleSheet, Text, View, Alert, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 // *** ตรวจสอบ Path การ Import ให้ถูกต้อง ***
 import Button from '../components/ui/Button';
@@ -18,6 +19,15 @@ function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleBack = () => {
+      if (router.canGoBack()) {
+          router.back();
+      } else {
+          // กรณีไม่มีหน้าก่อนหน้า (เช่น เปิดแอปมาหน้านี้เลย) อาจจะให้ไปหน้าแรก
+          router.replace('./index'); 
+      }
+  };
 
   const handleLogin = async () => {
     if (loading) return;
@@ -52,7 +62,7 @@ function LoginScreen() {
       if (user.role === 'farmer') {
         // Back-end บอกว่าเป็น farmer (ซึ่งมาจากการมี farmer_doc_url)
         router.replace('/farmer/homeFarmer'); // 👈 ไปหน้า homeFarmer
-      } else {
+      } else if (user.role === 'buyer') {
         // ถ้าเป็น 'buyer' หรือ role อื่นๆ
         router.replace('/buyer/homeBuyer'); // 👈 ไปหน้า homeBuyer (อ้างอิงจาก buyerProfile.tsx)
       }
@@ -80,6 +90,10 @@ function LoginScreen() {
         style={loginStyles.backgroundTop}
         start={{ x: 0.1, y: 0.1 }}
         end={{ x: 1, y: 1 }} />
+
+        <TouchableOpacity onPress={handleBack} style={loginStyles.backButton}>
+          <Ionicons name="arrow-back" size={28} color="white" />
+      </TouchableOpacity>
 
       <View style={loginStyles.content}>
         <Text style={loginStyles.header}>เข้าสู่ระบบ</Text>
@@ -130,6 +144,13 @@ const loginStyles = StyleSheet.create({
   backgroundTop: {
       ...registerBaseStyles.backgroundTop,
       // ไม่ต้องใส่ backgroundColor/opacity เพราะ LinearGradient จัดการแทน
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50, // เว้นระยะจากขอบบน (เผื่อ Status Bar)
+    left: 20,
+    zIndex: 10, // ให้ลอยอยู่เหนือ Layer อื่น
+    padding: 5, // เพิ่มพื้นที่กดให้นิ้วแตะง่ายขึ้น
   },
   content: {
     flex: 1,

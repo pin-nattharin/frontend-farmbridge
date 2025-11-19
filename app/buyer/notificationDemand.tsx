@@ -1,37 +1,29 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+// notificationDemand.tsx
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Alert, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons'; 
 
-// *** ตรวจสอบ Path การ Import ให้ถูกต้อง ***
 import BuyerNavbar from '../../components/ui/BuyerNavbar'; 
+import api from '../../services/api';
+import { useAuth } from '../context/AuthContext';
+
+// Interface สำหรับข้อมูลที่ได้จาก API
+interface NotificationItem {
+    id: number;
+    type: string;
+    message: string; 
+    related_id: number | null; 
+    is_read: boolean;
+    distance: number | null; 
+    created_at: string;
+}
 
 // ----------------------------------------------------
-// 1. DUMMY DATA (คงเดิม)
+// Component: NotificationCard
 // ----------------------------------------------------
-const notificationList = [
-    { 
-        id: '1', 
-        product: 'มะม่วง พร้อมส่ง', 
-        detail: '(ใกล้แค่ 2.5 กม.)', 
-        message: 'สบายดีฟาร์มเพิ่งลงขายสินค้าที่คุณมองหา คลิกดูเลยก่อนของหมด!',
-        isNew: true, 
-    },
-    { 
-        id: '2', 
-        product: 'ทุเรียน พร้อมส่ง', 
-        detail: '(ใกล้แค่ 5 กม.)', 
-        message: 'แฮปปี้ฟาร์มเพิ่งลงขายสินค้าที่คุณมองหา คลิกดูเลยก่อนของหมด!',
-        isNew: false, 
-    },
-];
-
-// ----------------------------------------------------
-// 2. Component: NotificationCard (คงเดิม)
-// ----------------------------------------------------
-
 interface NotificationCardProps {
-    product: string;
+    title: string;
     detail: string;
     message: string;
     isNew: boolean;
@@ -39,7 +31,7 @@ interface NotificationCardProps {
 }
 
 const NotificationCard: React.FC<NotificationCardProps> = ({
-    product,
+    title,
     detail,
     message,
     isNew,
@@ -51,86 +43,148 @@ const NotificationCard: React.FC<NotificationCardProps> = ({
             onPress={onPress}
             activeOpacity={0.8}
         >
+            {/* Indicator สีน้ำเงินสำหรับรายการที่ยังไม่ได้อ่าน */}
+            {!isNew && <View style={cardStyles.readIndicator} />} 
             {isNew && <View style={cardStyles.newIndicator} />}
 
             <View style={cardStyles.content}>
-                <Text style={cardStyles.productName}>
-                    {product} <Text style={cardStyles.detailText}>{detail}</Text>
-                </Text>
-                <Text style={cardStyles.messageText}>
+                <View style={cardStyles.headerRow}>
+                    <Text style={cardStyles.productName}>
+                        {title}
+                    </Text>
+                    {detail ? <Text style={cardStyles.detailText}>{detail}</Text> : null}
+                </View>
+                <Text style={cardStyles.messageText} numberOfLines={3}>
                     {message}
                 </Text>
+                <Text style={cardStyles.clickText}>คลิกเพื่อดูรายละเอียด</Text>
             </View>
         </TouchableOpacity>
     );
 };
 
-
 // ----------------------------------------------------
-// 3. หน้าจอหลัก NotificationScreen (แก้ไขการนำทาง)
+// หน้าจอหลัก NotificationScreen
 // ----------------------------------------------------
 
 type ActiveTab = 'home' | 'list' | 'add' | 'notify' | 'profile';
 
 export default function NotificationScreen() {
     const router = useRouter();
+    const { token } = useAuth(); 
     const [activeTab, setActiveTab] = useState<ActiveTab>('notify'); 
+    
+    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    // 🆕 NEW: ฟังก์ชันสำหรับปุ่มย้อนกลับ
+    // ฟังก์ชันดึงข้อมูลแจ้งเตือน
+    const fetchNotifications = async () => {
+        if (!token) return;
+        try {
+            const response = await api.get('/notifications');
+            
+            // ⭐️ แก้ไข: กรองเฉพาะ type === 'match' (สินค้าที่ผู้ซื้อ demand ไว้)
+            const matchNotifications = response.data.filter((item: NotificationItem) => item.type === 'match');
+            
+            setNotifications(matchNotifications);
+        } catch (error) {
+            console.error("Fetch Notifications Error:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    // โหลดข้อมูลใหม่ทุกครั้งที่เข้ามาที่หน้านี้
+    useFocusEffect(
+        useCallback(() => {
+            fetchNotifications();
+        }, [token])
+    );
+
     const handleBack = () => {
         router.back();
     };
     
-    // 🆕 แก้ไข: นำทางไปยังหน้า productdetail พร้อมส่ง ID
-    const handleCardPress = (item: typeof notificationList[0]) => {
-        // ใช้ router.push เพื่อนำทางไปยัง /productdetail?id={item.id}
-        router.push(`/productDetail?id=${item.id}`);
-        console.log(`Navigating to productdetail for ID: ${item.id}`);
+    // จัดการเมื่อกดที่การ์ด
+    const handleCardPress = async (item: NotificationItem) => {
+        // 1. ทำเครื่องหมายว่าอ่านแล้ว
+        try {
+            if (!item.is_read) {
+                await api.post(`/notifications/${item.id}/read`);
+                setNotifications(prev => 
+                    prev.map(n => n.id === item.id ? { ...n, is_read: true } : n)
+                );
+            }
+        } catch (err) {
+            console.log("Mark read error:", err);
+        }
+
+        // 2. นำทางไปยังหน้า Product Detail
+        if (item.related_id) {
+            router.push({
+                pathname: '/productDetail',
+                params: { id: item.related_id }
+            });
+        } else {
+            Alert.alert("แจ้งเตือน", "ไม่พบข้อมูลสินค้าสำหรับรายการนี้");
+        }
     };
 
     const handleNavPress = (tab: ActiveTab) => {
         setActiveTab(tab);
-        if (tab === 'home') {
-            router.replace('/buyer/homeBuyer');
-        } else if (tab === 'add') {
-            router.push('/buyer/createDemand');
-        } else if (tab === 'list') {
-            router.replace('/buyer/historyDemand');
-        } else if (tab === 'profile' || tab === 'notify') {
-            return;
-        }
+        if (tab === 'home') router.replace('/buyer/homeBuyer');
+        else if (tab === 'add') router.push('/buyer/createDemand');
+        else if (tab === 'list') router.replace('/buyer/historyDemand');
     };
 
     return (
         <SafeAreaView style={styles.safeArea}>
-        
-        {/* 🆕 ADD: ปุ่มย้อนกลับ (จัดวางให้ลอยอยู่เหนือเนื้อหา) */}
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                            <Ionicons name="arrow-back" size={24} color="#0056b3" />
-                        </TouchableOpacity>
+            {/* ปุ่มย้อนกลับ */}
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={24} color="#0056b3" />
+            </TouchableOpacity>
                         
             <View style={styles.contentWrapper}>
-                
-                {/* Custom Title (อยู่ใต้ Stack Header) */}
                 <Text style={styles.pageTitle}>การแจ้งเตือน</Text>
                 
-                {/* Body Content */}
-                <ScrollView contentContainerStyle={styles.scrollContent}>
-                    {notificationList.map((item) => (
-                        <NotificationCard
-                            key={item.id}
-                            // 🆕 ใช้ \n ใน message เพื่อให้ขึ้นบรรทัดใหม่ตามภาพตัวอย่าง
-                            product={item.product}
-                            detail={item.detail}
-                            message={item.message.replace(' คลิกดูเลยก่อนของหมด!', '\nคลิกดูเลยก่อนของหมด!')}
-                            isNew={item.isNew}
-                            onPress={() => handleCardPress(item)}
-                        />
-                    ))}
-                    <View style={{ height: 20 }} /> 
-                </ScrollView>
+                {loading ? (
+                    <ActivityIndicator size="large" color="#0056b3" style={{ marginTop: 50 }} />
+                ) : (
+                    <ScrollView 
+                        contentContainerStyle={styles.scrollContent}
+                        refreshControl={
+                            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNotifications(); }} />
+                        }
+                    >
+                        {notifications.length === 0 ? (
+                            <Text style={styles.emptyText}>ยังไม่พบสินค้าที่คุณต้องการ</Text>
+                        ) : (
+                            notifications.map((item) => {
+                                // ⭐️ กำหนดหัวข้อให้ชัดเจนว่าเป็นสินค้าที่ตรงกับ Demand
+                                const title = "เจอสินค้าที่คุณตามหา!"; 
+                                
+                                const distanceDetail = item.distance 
+                                    ? `(ห่าง ${item.distance.toFixed(1)} กม.)` 
+                                    : '';
+
+                                return (
+                                    <NotificationCard
+                                        key={item.id}
+                                        title={title}
+                                        detail={distanceDetail}
+                                        message={item.message} 
+                                        isNew={!item.is_read}
+                                        onPress={() => handleCardPress(item)}
+                                    />
+                                );
+                            })
+                        )}
+                        <View style={{ height: 20 }} /> 
+                    </ScrollView>
+                )}
                 
-                {/* Bottom Navbar */}
                 <BuyerNavbar
                     onHomePress={() => handleNavPress('home')}
                     onListPress={() => handleNavPress('list')}
@@ -145,7 +199,7 @@ export default function NotificationScreen() {
 }
 
 // ----------------------------------------------------
-// 4. Stylesheet (ปรับปรุง)
+// Stylesheet
 // ----------------------------------------------------
 
 const styles = StyleSheet.create({
@@ -156,19 +210,12 @@ const styles = StyleSheet.create({
     contentWrapper: {
         flex: 1,
     },
-    //  Style สำหรับปุ่มย้อนกลับ
     backButton: {
-        position: 'absolute', // ทำให้ปุ่มลอย
-        top: 50, // ปรับตำแหน่งให้เหมาะสมกับ SafeAreaView
+        position: 'absolute', 
+        top: 50, 
         left: 15,
-        zIndex: 10, // ให้อยู่ด้านบนสุด
+        zIndex: 10, 
         padding: 5,
-    },
-    // 🆕 Style สำหรับ Stack Header Title
-    stackHeaderTitle: {
-        fontWeight: 'bold',
-        fontSize: 20,
-        color: '#333',
     },
     pageTitle: {
         fontSize: 24,
@@ -177,15 +224,20 @@ const styles = StyleSheet.create({
         marginHorizontal: 16,
         marginTop: 70,
         marginBottom: 20,
-        textAlign: 'center', // จัดให้อยู่ตรงกลางตามภาพตัวอย่าง
+        textAlign: 'center', 
     },
     scrollContent: {
         paddingVertical: 5,
         paddingHorizontal: 16,
-        paddingBottom: 80, // เว้นที่ว่างให้ Navbar
+        paddingBottom: 80, 
     },
+    emptyText: {
+        textAlign: 'center',
+        color: '#999',
+        marginTop: 40,
+        fontSize: 16,
+    }
 });
-
 
 const cardStyles = StyleSheet.create({
     card: {
@@ -193,47 +245,66 @@ const cardStyles = StyleSheet.create({
         borderRadius: 12,
         marginBottom: 15,
         flexDirection: 'row',
-        alignItems: 'center',
-        padding: 20,
+        alignItems: 'flex-start', 
+        padding: 15,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-        elevation: 2,
-        overflow: 'hidden', 
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+        overflow: 'hidden',
+        minHeight: 100,
     },
     cardNew: {
-        // ...
+        backgroundColor: '#F0F8FF', 
     },
     newIndicator: {
         position: 'absolute',
         top: 0,
         left: 0,
         bottom: 0,
-        width: 8, 
+        width: 6, 
         backgroundColor: '#0056b3', 
-        borderTopLeftRadius: 12,
-        borderBottomLeftRadius: 12,
+    },
+    readIndicator: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: 6, 
+        backgroundColor: '#E0E0E0', 
     },
     content: {
         flex: 1,
-        // ปรับ paddingLeft เนื่องจากแถบสีน้ำเงินอยู่ด้านซ้าย
-        paddingLeft: 5, 
+        paddingLeft: 12, 
+    },
+    headerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+        flexWrap: 'wrap'
     },
     productName: {
         fontSize: 16,
         fontWeight: 'bold',
         color: '#0056b3',
-        marginBottom: 5,
     },
     detailText: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: 'normal',
-        color: '#555',
+        color: '#28a745', 
     },
     messageText: {
         fontSize: 14,
-        color: '#333',
+        color: '#444',
         lineHeight: 20,
+        marginBottom: 8,
     },
+    clickText: {
+        fontSize: 12,
+        color: '#999',
+        fontStyle: 'italic',
+        alignSelf: 'flex-end'
+    }
 });
